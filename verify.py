@@ -71,27 +71,47 @@ def analyze_test_failure(test_code: str, error_output: str) -> Dict[str, Any]:
     
     system_prompt = (
         "You are an expert Python developer. Given integration test code and its error output, "
-        "analyze whether the failure is due to:\n"
-        "1. 'logical_error' - Issue with the application logic/API itself\n"
-        "2. 'testing_error' - Issue with the test code (wrong assumptions, bad test logic, etc.)\n\n"
-        "Return a JSON object with:\n"
-        "- 'error_type': 'logical_error' or 'testing_error'\n"
-        "- 'explanation': Brief explanation of the issue\n"
-        "- 'suggested_fix': What should be done to fix it\n"
-        "Only return the JSON, no explanation."
+        "analyze whether the failure is due to a logical error (issue with the application logic/API itself) "
+        "or a testing error (issue with the test code, wrong assumptions, bad test logic, etc.)."
     )
     
     user_message = f"Test code:\n{test_code}\n\nError output:\n{error_output}"
+    
+    tools = [{
+        "name": "analyze_failure",
+        "description": "Analyze test failure and provide categorization",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "error_type": {
+                    "type": "string",
+                    "enum": ["logical_error", "testing_error"],
+                    "description": "Whether the failure is due to application logic or test code issues"
+                },
+                "explanation": {
+                    "type": "string",
+                    "description": "Brief explanation of the issue"
+                },
+                "suggested_fix": {
+                    "type": "string",
+                    "description": "What should be done to fix it"
+                }
+            },
+            "required": ["error_type", "explanation", "suggested_fix"]
+        }
+    }]
     
     response = client.messages.create(
         model="claude-3-5-sonnet-latest",
         max_tokens=8192,
         temperature=0,
         system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
+        messages=[{"role": "user", "content": user_message}],
+        tools=tools,
+        tool_choice={"type": "tool", "name": "analyze_failure"}
     )
     
-    return json.loads(response.content[0].text.strip())
+    return response.content[0].input
 
 def fix_test_code(test_code: str, error_output: str, analysis: Dict[str, Any]) -> str:
     """Use Claude to fix the test code based on error analysis"""
