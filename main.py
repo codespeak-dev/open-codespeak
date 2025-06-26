@@ -216,7 +216,7 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         "- 'fields' (object mapping field names to Django field types, e.g. 'CharField(max_length=100)')"
         "- 'relationships' (object mapping field names to relationship info with 'type' and 'related_to' keys)"
         "For relationships, use types like 'ForeignKey', 'ManyToManyField', 'OneToOneField'."
-        "IMPORTANT: If there's an intermediate model (like RSVP) that connects two other models (like User and Event), "
+        "IMPORTANT: If there's an intermediate model that connects two other models (like Appointment with Patient and Doctor, or like LineItem with Order and Product), "
         "do NOT create direct ManyToManyField relationships between the connected models. "
         "The intermediate model's ForeignKey relationships are sufficient to represent the many-to-many connection."
         "Example: {\"name\": \"Post\", \"fields\": {\"title\": \"CharField(max_length=100)\"}, \"relationships\": {\"author\": {\"type\": \"ForeignKey\", \"related_to\": \"User\"}}}"
