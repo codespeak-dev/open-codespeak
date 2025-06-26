@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from copy import deepcopy
+import datetime
 import json
 import os
 from typing import Any, Callable
@@ -46,8 +47,9 @@ class Done(Transition):
 class PersistentStateMachine:
     INITIAL_TRANSITION = "__initial"
     LAST_EXECUTED_TRANSITION = "__last"
-    LAST_ATTEMPTED_TRANSITION = "__last_attempted"
+    LAST_FAILED_TRANSITION = "__last_failed"
     FAILURE_INFO = "__failure_info"
+    HISTORY = "__history"
     
     def __init__(self, transitions: list[Transition], initial_state: dict, state_file: Callable[[State], str | None]):
         self.transitions = transitions
@@ -73,25 +75,39 @@ class PersistentStateMachine:
                 print(f"Transition {current_transition} has already been executed, skipping...")
                 continue
             
-            last_attempted_transition = state.get(self.LAST_ATTEMPTED_TRANSITION)
-            if last_attempted_transition == current_transition and last_attempted_transition != last_executed_transition:
+            last_failed_transition = state.get(self.LAST_FAILED_TRANSITION)
+            if last_failed_transition == current_transition and last_failed_transition != last_executed_transition:
                 print(f"Transition {current_transition} failed last time, cleaning up...")
                 transition.cleanup(state)
+
+            def append_to_history(data):
+                return {
+                    self.HISTORY: [
+                        *state.get(self.HISTORY, []),
+                        {
+                            "transition": current_transition,
+                            "timestamp": datetime.datetime.now().isoformat(),
+                            **data
+                        }
+                    ]
+                }
 
             try:
                 state = transition.run(state).clone({
                     self.LAST_EXECUTED_TRANSITION: current_transition,
+                    **append_to_history({})
                 })
             except Exception as e:
                 print(f"Error running transition {current_transition}: {e}")
                 self.save_state(state.clone({
-                    self.LAST_ATTEMPTED_TRANSITION: current_transition,
-                    self.FAILURE_INFO: str(e)
+                    self.LAST_FAILED_TRANSITION: current_transition,
+                    **append_to_history({"error": str(e)})
                 }))
                 raise e
 
             self.save_state(state)
             # print(state.data)
+
         return state
 
     def save_state(self, state):
