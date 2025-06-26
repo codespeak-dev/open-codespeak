@@ -20,6 +20,9 @@ class Entity(BaseModel):
     relationships: Dict[str, Dict[str, str]] = {}
 
 
+def to_entities(raw_data):
+    return [Entity(**item) for item in raw_data]
+
 def extract_models_and_fields(prompt: str) -> List[Entity]:
     """
     Uses Claude 3.5 to extract a list of Django models and their fields from the prompt.
@@ -46,21 +49,16 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         system=system_prompt,
         messages=[{"role": "user", "content": prompt}]
     )
-    raw_data = json.loads(response.content[0].text.strip())
-    return [Entity(**item) for item in raw_data]
+    return json.loads(response.content[0].text.strip())
 
-def refine_entities(original_prompt: str, entities: List[Entity], feedback: str) -> List[Entity]:
+def refine_entities(original_prompt: str, entities: dict, feedback: str) -> dict:
     """
     Use Claude to refine entities based on user feedback.
     """
     client = anthropic.Anthropic()
     
     # Convert entities to JSON for the prompt
-    entities_json = json.dumps([{
-        "name": entity.name,
-        "fields": entity.fields,
-        "relationships": entity.relationships
-    } for entity in entities], indent=2)
+    entities_json = json.dumps(entities, indent=2)
     
     system_prompt = (
         "You are an expert Django developer. Given the original user prompt, current entities, and user feedback, "
@@ -90,8 +88,7 @@ Please modify the entities based on the feedback."""
         messages=[{"role": "user", "content": user_message}]
     )
     
-    raw_data = json.loads(response.content[0].text.strip())
-    return [Entity(**item) for item in raw_data]
+    return json.loads(response.content[0].text.strip())
 
 def display_entities(entities: List[Entity]):
     """Display entities in a formatted way"""
@@ -103,7 +100,7 @@ def display_entities(entities: List[Entity]):
         for field, ftype in entity.fields.items():
             print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
 
-def get_entities_confirmation(entities: List[Entity], original_prompt: str = "") -> Tuple[bool, List[Entity]]:
+def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tuple[bool, dict]:
     """
     Ask user to confirm entities or provide feedback for changes.
     Returns (should_proceed, final_entities)
@@ -111,7 +108,7 @@ def get_entities_confirmation(entities: List[Entity], original_prompt: str = "")
     current_entities = entities
     
     while True:
-        display_entities(current_entities)
+        display_entities(to_entities(current_entities))
         print(f"\n{Colors.BOLD}Please review the extracted entities:{Colors.END}")
         
         questions = [
