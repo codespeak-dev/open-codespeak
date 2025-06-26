@@ -2,7 +2,7 @@ from abc import abstractmethod
 from copy import deepcopy
 import json
 import os
-from typing import Any
+from typing import Any, Callable
 
 
 class State:
@@ -25,6 +25,9 @@ class State:
     def __setitem__(self, key: str, value: Any) -> None:
         self._data[key] = value
 
+    def __contains__(self, key: str) -> bool:
+        return key in self._data
+
 class Transition:
     def __init__(self):
         pass
@@ -44,14 +47,17 @@ class PersistentStateMachine:
     LAST_EXECUTED_TRANSITION = "__last"
     INITIAL_TRANSITION = "__initial"
     
-    def __init__(self, transitions: list[Transition], initial_state: dict, state_file: str):
+    def __init__(self, transitions: list[Transition], initial_state: dict, state_file: Callable[[State], str | None]):
         self.transitions = transitions
         self.state_file = state_file
         self.current_state = State({self.LAST_EXECUTED_TRANSITION: self.INITIAL_TRANSITION, **initial_state})
 
-        if os.path.exists(self.state_file):
-            with open(self.state_file, "r") as f:
+        state_file = self.state_file(self.current_state)
+        if state_file and os.path.exists(state_file):
+            print(f"Loading state from {state_file}")
+            with open(state_file, "r") as f:
                 self.current_state = State(json.load(f))
+            print(f"  * Last executed transition: {self.current_state.get(self.LAST_EXECUTED_TRANSITION)}")
 
     def run_state_machine(self) -> State:
         transition_names = [transition.__class__.__name__ for transition in self.transitions]
@@ -68,8 +74,10 @@ class PersistentStateMachine:
                 self.LAST_EXECUTED_TRANSITION: transition.__class__.__name__
             })
 
-            with open(self.state_file, "w") as f:
-                json.dump(state.data, f, indent=4)
+            state_file = self.state_file(state)
+            if state_file:
+                with open(state_file, "w") as f:
+                    json.dump(state.data, f, indent=4)
             # print(state.data)
         return state
 

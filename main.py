@@ -14,17 +14,32 @@ dotenv.load_dotenv()
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
-    parser.add_argument('filepath', help='Path to the input file')
+    parser.add_argument('filepath', nargs='?', help='Path to the input file (required when not in incremental mode)')
     parser.add_argument('--target-dir', 
                        default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
                        help='Target directory for the generated project (defaults to CODESPEAK_TARGET_DIR env var or current directory)')
     parser.add_argument('--incremental', help='Path to the project output dir')
     args = parser.parse_args()
 
-    spec_file = args.filepath
+    if args.incremental:
+        print(f"Running in incremental mode from {args.incremental}")
+        initial_state = {
+            "project_path": args.incremental,
+        }
+    else:
+        if not args.filepath:
+            print("Error: filepath is required when not in incremental mode")
+            parser.print_help()
+            return
 
-    with open(spec_file, 'r') as f:
-        spec = f.read()
+        spec_file = args.filepath
+        with open(spec_file, 'r') as f:
+            spec = f.read()
+
+        initial_state = {
+            "spec": spec,
+            "target_dir": args.target_dir,
+        }
 
     psm = PersistentStateMachine(
         [
@@ -35,11 +50,8 @@ def main():
             Migrate(),
             Done(),
         ], 
-        {
-            "spec": spec,
-            "target_dir": args.target_dir,
-        }, 
-        "state.json"
+        initial_state, 
+        lambda state: os.path.join(state["project_path"], "codespeak_state.json") if "project_path" in state else None
     )
 
     state = psm.run_state_machine()
