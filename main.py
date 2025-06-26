@@ -104,10 +104,10 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
         # (template_path, output_path)
         (f'{project_name}/settings.py', os.path.join(project_settings_root, 'settings.py')),
         (f'{app_name}/models.py', os.path.join(project_root, app_name, 'models.py')),
-        (f'{app_name}/views.py', os.path.join(project_name, app_name, 'views.py')),
+        (f'{app_name}/views.py', os.path.join(project_root, app_name, 'views.py')),
         (f'{project_name}/asgi.py', os.path.join(project_settings_root, 'asgi.py')),
         (f'{project_name}/wsgi.py', os.path.join(project_settings_root, 'wsgi.py')),
-        ('manage.py', os.path.join(project_name, 'manage.py')),
+        ('manage.py', os.path.join(project_root, 'manage.py')),
     ]
 
     for template_path, output_path in files_to_template:
