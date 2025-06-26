@@ -7,7 +7,7 @@ from extract_project_name import ExtractProjectName
 from generate_django_project import GenerateDjangoProject
 from makemigrations import MakeMigrations
 from migrate import Migrate
-from state_machine import Done, PersistentStateMachine, State
+from state_machine import Done, PersistentStateMachine
 
 dotenv.load_dotenv()
 

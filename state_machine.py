@@ -13,8 +13,8 @@ class State:
     def data(self) -> dict:
         return deepcopy(self._data)
     
-    def get(self, key: str) -> Any:
-        return self._data[key]
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._data.get(key, default)
     
     def clone(self, delta: dict = None) -> "State":
         return self.__class__({**deepcopy(self._data), **(delta or {})})
@@ -36,7 +36,7 @@ class Transition:
     def run(self, state: State) -> State:
         pass
 
-    def cleanup(self):
+    def cleanup(self, state: State):
         pass
 
 class Done(Transition):
@@ -44,8 +44,10 @@ class Done(Transition):
         return state.clone()
 
 class PersistentStateMachine:
-    LAST_EXECUTED_TRANSITION = "__last"
     INITIAL_TRANSITION = "__initial"
+    LAST_EXECUTED_TRANSITION = "__last"
+    LAST_ATTEMPTED_TRANSITION = "__last_attempted"
+    FAILURE_INFO = "__failure_info"
     
     def __init__(self, transitions: list[Transition], initial_state: dict, state_file: Callable[[State], str | None]):
         self.transitions = transitions
@@ -66,20 +68,37 @@ class PersistentStateMachine:
         for transition in self.transitions:
             current_transition = transition.__class__.__name__        
             last_executed_transition = state.get(self.LAST_EXECUTED_TRANSITION)
+
             if last_executed_transition in transition_names and transition_names.index(last_executed_transition) >= transition_names.index(current_transition):
                 print(f"Transition {current_transition} has already been executed, skipping...")
                 continue
             
-            state = transition.run(state).clone({
-                self.LAST_EXECUTED_TRANSITION: transition.__class__.__name__
-            })
+            last_attempted_transition = state.get(self.LAST_ATTEMPTED_TRANSITION)
+            if last_attempted_transition == current_transition and last_attempted_transition != last_executed_transition:
+                print(f"Transition {current_transition} failed last time, cleaning up...")
+                transition.cleanup(state)
 
-            state_file = self.state_file(state)
-            if state_file:
-                with open(state_file, "w") as f:
-                    json.dump(state.data, f, indent=4)
+            try:
+                state = transition.run(state).clone({
+                    self.LAST_EXECUTED_TRANSITION: current_transition,
+                })
+            except Exception as e:
+                print(f"Error running transition {current_transition}: {e}")
+                self.save_state(state.clone({
+                    self.LAST_ATTEMPTED_TRANSITION: current_transition,
+                    self.FAILURE_INFO: str(e)
+                }))
+                raise e
+
+            self.save_state(state)
             # print(state.data)
         return state
+
+    def save_state(self, state):
+        state_file = self.state_file(state)
+        if state_file:
+            with open(state_file, "w") as f:
+                json.dump(state.data, f, indent=4)
 
 if __name__ == "__main__":
     
