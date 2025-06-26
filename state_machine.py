@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from copy import deepcopy
 import json
+import os
 from typing import Any
 
 
@@ -41,15 +42,20 @@ class Done(Transition):
 
 class PersistentStateMachine:
     LAST_EXECUTED_TRANSITION = "__last"
+    INITIAL_TRANSITION = "__initial"
     
     def __init__(self, transitions: list[Transition], initial_state: dict, state_file: str):
         self.transitions = transitions
         self.state_file = state_file
-        self.initial_state = initial_state
+        self.current_state = State({self.LAST_EXECUTED_TRANSITION: self.INITIAL_TRANSITION, **initial_state})
+
+        if os.path.exists(self.state_file):
+            with open(self.state_file, "r") as f:
+                self.current_state = State(json.load(f))
 
     def run_state_machine(self) -> State:
         transition_names = [transition.__class__.__name__ for transition in self.transitions]
-        state = State({self.LAST_EXECUTED_TRANSITION: "Initial", **self.initial_state})
+        state = self.current_state
         # print(state.data)
         for transition in self.transitions:
             current_transition = transition.__class__.__name__        
