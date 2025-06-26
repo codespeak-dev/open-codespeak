@@ -28,6 +28,10 @@ class Transition:
     def cleanup(self):
         pass
 
+class Done(Transition):
+    def run(self, state: State) -> State:
+        return state.clone()
+
 def run_state_machine(transitions: list[Transition], initial_state: State) -> State:
     transition_names = [transition.__class__.__name__ for transition in transitions]
     state = initial_state
