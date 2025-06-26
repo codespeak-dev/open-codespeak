@@ -15,6 +15,8 @@ from contextlib import contextmanager
 import shutil
 from jinja2 import Environment, FileSystemLoader
 import secrets
+from typing import List, Dict, Optional
+from pydantic import BaseModel
 
 dotenv.load_dotenv()
 
@@ -47,11 +49,22 @@ PREFIXES = [
     'vivid', 'gentle', 'bold', 'swift', 'serene', 'amber', 'frosty', 'sunny', 'dusky', 'stellar'
 ]
 
+class EntityField(BaseModel):
+    name: str
+    field_type: str
+    related_to: Optional[str] = None
+    relationship_type: Optional[str] = None
+
+class Entity(BaseModel):
+    name: str
+    fields: Dict[str, str]
+    relationships: Dict[str, Dict[str, str]] = {}
+
 def prefixed_project_name(base_name: str) -> str:
     prefix = random.choice(PREFIXES)
     return f"{prefix}_{base_name}"
 
-def generate_django_project_from_template(target_dir: str, project_name: str, entities: list, app_name: str = "web"):
+def generate_django_project_from_template(target_dir: str, project_name: str, entities: List[Entity], app_name: str = "web"):
     template_dir = "app_template"
     project_root = os.path.join(target_dir, project_name)
     shutil.copytree(template_dir, project_root)
@@ -82,9 +95,10 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
         # (template_path, output_path)
         (f'{project_name}/settings.py', os.path.join(project_settings_root, 'settings.py')),
         (f'{app_name}/models.py', os.path.join(project_root, app_name, 'models.py')),
+        (f'{app_name}/views.py', os.path.join(project_name, app_name, 'views.py')),
         (f'{project_name}/asgi.py', os.path.join(project_settings_root, 'asgi.py')),
         (f'{project_name}/wsgi.py', os.path.join(project_settings_root, 'wsgi.py')),
-        ('manage.py', os.path.join(project_root, 'manage.py')),
+        ('manage.py', os.path.join(project_name, 'manage.py')),
     ]
 
     for template_path, output_path in files_to_template:
@@ -108,25 +122,31 @@ def extract_project_name(prompt: str) -> str:
     )
     return response.content[0].text.strip()
 
-def extract_models_and_fields(prompt: str) -> list:
+def extract_models_and_fields(prompt: str) -> List[Entity]:
     """
     Uses Claude 3.5 to extract a list of Django models and their fields from the prompt.
-    Returns a list of dicts: [{"name": ..., "fields": {field_name: field_type, ...}}, ...]
+    Returns a list of Entity objects with fields and relationships.
     """
     client = anthropic.Anthropic()
     system_prompt = (
         "You are an expert Django developer. Given a user prompt, extract a list of Django models and their fields. "
-        "Return a JSON array of objects, each with 'name' (model name) and 'fields' (object mapping field names to Django field types, e.g. 'CharField(max_length=100)'). "
+        "Return a JSON array of objects, each with:"
+        "- 'name' (model name)"
+        "- 'fields' (object mapping field names to Django field types, e.g. 'CharField(max_length=100)')"
+        "- 'relationships' (object mapping field names to relationship info with 'type' and 'related_to' keys)"
+        "For relationships, use types like 'ForeignKey', 'ManyToManyField', 'OneToOneField'."
+        "Example: {\"name\": \"Post\", \"fields\": {\"title\": \"CharField(max_length=100)\", \"author_id\": \"IntegerField()\"}, \"relationships\": {\"author\": {\"type\": \"ForeignKey\", \"related_to\": \"User\"}}}"
         "Do not include any explanation, only valid JSON."
     )
     response = client.messages.create(
         model="claude-3-5-sonnet-latest",
-        max_tokens=512,
+        max_tokens=1024,
         temperature=0,
         system=system_prompt,
         messages=[{"role": "user", "content": prompt}]
     )
-    return json.loads(response.content[0].text.strip())
+    raw_data = json.loads(response.content[0].text.strip())
+    return [Entity(**item) for item in raw_data]
 
 
 def main():
@@ -152,9 +172,13 @@ def main():
         with_step_result['entities'] = entities
     print("Entities extracted:")
     for entity in with_step_result['entities']:
-        print(f"  - {entity['name']}")
-        for field, ftype in entity['fields'].items():
+        print(f"  - {entity.name}")
+        for field, ftype in entity.fields.items():
             print(f"      {field}: {ftype}")
+        if entity.relationships:
+            print("    Relationships:")
+            for rel_field, rel_info in entity.relationships.items():
+                print(f"      {rel_field}: {rel_info['type']} -> {rel_info['related_to']}")
 
     # Create target directory if it doesn't exist
     os.makedirs(args.target_dir, exist_ok=True)

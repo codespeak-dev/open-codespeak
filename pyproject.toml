@@ -8,6 +8,9 @@ dependencies = [
     "anthropic>=0.55.0",
     "django>=5.2.3",
     "dotenv>=0.9.9",
+    "fastapi>=0.115.13",
     "jinja2>=3.1.6",
+    "pydantic>=2.11.7",
+    "uvicorn>=0.34.3",
     "yaspin>=3.1.0",
 ]

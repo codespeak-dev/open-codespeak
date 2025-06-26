@@ -9,4 +9,3 @@ class {{ entity.name }}(models.Model):
 
 {% endif %}
 {% endfor %}
-
