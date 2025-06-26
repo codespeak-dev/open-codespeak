@@ -7,7 +7,7 @@ from extract_project_name import ExtractProjectName
 from generate_django_project import GenerateDjangoProject
 from makemigrations import MakeMigrations
 from migrate import Migrate
-from state_machine import Done, State, run_state_machine
+from state_machine import Done, PersistentStateMachine, State
 
 dotenv.load_dotenv()
 
@@ -26,17 +26,23 @@ def main():
     with open(spec_file, 'r') as f:
         spec = f.read()
 
-    state = run_state_machine([
-        ExtractProjectName(),        
-        ExtractEntities(),
-        GenerateDjangoProject(),
-        MakeMigrations(),
-        Migrate(),
-        Done(),
-    ], State({
-        "spec": spec,
-        "target_dir": args.target_dir,
-    }))    
+    psm = PersistentStateMachine(
+        [
+            ExtractProjectName(),        
+            ExtractEntities(),
+            GenerateDjangoProject(),
+            MakeMigrations(),
+            Migrate(),
+            Done(),
+        ], 
+        {
+            "spec": spec,
+            "target_dir": args.target_dir,
+        }, 
+        "state.json"
+    )
+
+    state = psm.run_state_machine()
 
     project_name = state["project_name"]
     project_path = state["project_path"]

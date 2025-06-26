@@ -1,18 +1,19 @@
 from abc import abstractmethod
 from copy import deepcopy
+import json
 from typing import Any
 
 
 class State:
     def __init__(self, data: dict = None):
-        self._data = {"last_executed_transition": "Initial", **(data or {})}
+        self._data = data or {}
     
     @property
     def data(self) -> dict:
         return deepcopy(self._data)
     
-    def get(self, key: str, default: Any = None) -> Any:
-        return self._data.get(key, default)
+    def get(self, key: str) -> Any:
+        return self._data[key]
     
     def clone(self, delta: dict = None) -> "State":
         return self.__class__({**deepcopy(self._data), **(delta or {})})
@@ -38,22 +39,33 @@ class Done(Transition):
     def run(self, state: State) -> State:
         return state.clone()
 
-def run_state_machine(transitions: list[Transition], initial_state: State) -> State:
-    transition_names = [transition.__class__.__name__ for transition in transitions]
-    state = initial_state
-    # print(state.data)
-    for transition in transitions:
-        current_transition = transition.__class__.__name__        
-        last_executed_transition = state.get("last_executed_transition")
-        if last_executed_transition in transition_names and transition_names.index(last_executed_transition) >= transition_names.index(current_transition):
-            print(f"Transition {current_transition} has already been executed, skipping...")
-            continue
-        
-        state = transition.run(state).clone({
-            "last_executed_transition": transition.__class__.__name__
-        })
+class PersistentStateMachine:
+    LAST_EXECUTED_TRANSITION = "__last"
+    
+    def __init__(self, transitions: list[Transition], initial_state: dict, state_file: str):
+        self.transitions = transitions
+        self.state_file = state_file
+        self.initial_state = initial_state
+
+    def run_state_machine(self) -> State:
+        transition_names = [transition.__class__.__name__ for transition in self.transitions]
+        state = State({self.LAST_EXECUTED_TRANSITION: "Initial", **self.initial_state})
         # print(state.data)
-    return state
+        for transition in self.transitions:
+            current_transition = transition.__class__.__name__        
+            last_executed_transition = state.get(self.LAST_EXECUTED_TRANSITION)
+            if last_executed_transition in transition_names and transition_names.index(last_executed_transition) >= transition_names.index(current_transition):
+                print(f"Transition {current_transition} has already been executed, skipping...")
+                continue
+            
+            state = transition.run(state).clone({
+                self.LAST_EXECUTED_TRANSITION: transition.__class__.__name__
+            })
+
+            with open(self.state_file, "w") as f:
+                json.dump(state.data, f, indent=4)
+            # print(state.data)
+        return state
 
 if __name__ == "__main__":
     
@@ -77,7 +89,9 @@ if __name__ == "__main__":
                 ]
             })
 
-    run_state_machine([
+    sm = PersistentStateMachine([
         Step1(),
         Step2()
-    ], State({"last_executed_transition": "Initial"}))
+    ], {}, "state.json")
+    sm.run_state_machine()
+    # print(sm.state.data)
