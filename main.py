@@ -18,6 +18,8 @@ import secrets
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 
+from check_points import DJANGO_PROJECT_CREATED, DONE, MIGRATIONS_COMPLETE, CheckPoints
+
 dotenv.load_dotenv()
 
 # ANSI color codes
@@ -263,42 +265,55 @@ def main():
     
     # Generate project in the target directory
     project_path = os.path.join(args.target_dir, project_name)
-    generate_django_project_from_template(args.target_dir, project_name, with_step_result['entities'], "web")
 
-    def makemigrations():
-        max_retries = 3
-        models_file_path = os.path.join(project_path, "web", "models.py")
-        
-        for attempt in range(max_retries):
-            try:
-                result = subprocess.run(
-                    [sys.executable, "manage.py", "makemigrations", "web"], 
-                    cwd=project_path, 
-                    check=True,
-                    capture_output=True,
-                    text=True
-                )
-                return  # Success
-            except subprocess.CalledProcessError as e:
-                if attempt < max_retries - 1 and "NameError" in e.stderr:
-                    print(f"  {Colors.BRIGHT_YELLOW}→{Colors.END} Detected missing imports, auto-fixing...")
-                    if fix_missing_imports(e.stderr, models_file_path):
-                        print(f"  {Colors.BRIGHT_GREEN}✓{Colors.END} Imports fixed, retrying...")
-                        continue  # Retry with fixed imports
-                # Re-raise the error if we can't fix it or max retries reached
-                raise
-                
-    with with_step("Running makemigrations for 'web' app..."):
-        makemigrations()
-    print("makemigrations complete.")
+    cp = CheckPoints(project_path)
+    current_checkpoint = cp.get_current()
+    if current_checkpoint:
+        print(f"Current checkpoint: {current_checkpoint}")
+    else:
+        print("No checkpoint found, starting from scratch.")
 
-    def migrate():
-        subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
-    with with_step("Running migrate..."):
-        migrate()
-    print("migrate complete.")
+    # Generate project in the target directory
+    with cp.checkpoint(DJANGO_PROJECT_CREATED):
+        generate_django_project_from_template(args.target_dir, project_name, with_step_result['entities'], "web")
 
-    print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
+    with cp.checkpoint(MIGRATIONS_COMPLETE):
+        def makemigrations():
+            max_retries = 3
+            models_file_path = os.path.join(project_path, "web", "models.py")
+            
+            for attempt in range(max_retries):
+                try:
+                    result = subprocess.run(
+                        [sys.executable, "manage.py", "makemigrations", "web"], 
+                        cwd=project_path, 
+                        check=True,
+                        capture_output=True,
+                        text=True
+                    )
+                    return  # Success
+                except subprocess.CalledProcessError as e:
+                    if attempt < max_retries - 1 and "NameError" in e.stderr:
+                        print(f"  {Colors.BRIGHT_YELLOW}→{Colors.END} Detected missing imports, auto-fixing...")
+                        if fix_missing_imports(e.stderr, models_file_path):
+                            print(f"  {Colors.BRIGHT_GREEN}✓{Colors.END} Imports fixed, retrying...")
+                            continue  # Retry with fixed imports
+                    # Re-raise the error if we can't fix it or max retries reached
+                    raise
+                    
+        with with_step("Running makemigrations for 'web' app..."):
+            makemigrations()
+        print("makemigrations complete.")
+
+    with cp.checkpoint(MIGRATIONS_COMPLETE):
+        def migrate():
+            subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
+        with with_step("Running migrate..."):
+            migrate()
+        print("migrate complete.")
+
+    with cp.checkpoint(DONE):
+        print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
 
 if __name__ == "__main__":
     main()
