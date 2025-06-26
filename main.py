@@ -2,7 +2,7 @@ import argparse
 import os
 import dotenv
 from colors import Colors
-from extract_entities import ExtractEntities
+from extract_entities import ExtractEntities, RefineEntities
 from extract_project_name import ExtractProjectName
 from generate_django_project import GenerateDjangoProject
 from makemigrations import MakeMigrations
@@ -45,6 +45,7 @@ def main():
         [
             ExtractProjectName(),        
             ExtractEntities(),
+            RefineEntities(),
             GenerateDjangoProject(),
             MakeMigrations(),
             Migrate(),

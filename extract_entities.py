@@ -162,13 +162,21 @@ class ExtractEntities(Transition):
         with with_step("Extracting models and fields from Claude..."):
             entities = extract_models_and_fields(spec)
         
+        return state.clone({
+            "entities": entities
+        })
+    
+class RefineEntities(Transition):
+    def run(self, state: State) -> State:
+        spec = state["spec"]
+        entities = state["entities"]
+
         # Get user confirmation for entities
         should_proceed, final_entities = get_entities_confirmation(entities, spec)
         if not should_proceed:
             print(f"{Colors.BRIGHT_YELLOW}Project generation cancelled{Colors.END}")
             sys.exit(0)
-        entities = final_entities
 
         return state.clone({
-            "entities": entities
+            "entities": final_entities
         })
