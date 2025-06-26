@@ -19,3 +19,12 @@ Option 2. Install `direnv` to automatically load environments when you change di
 
 Follow https://direnv.net/docs/installation.html
 
+## Provide .env with API keys
+
+1. Copy `env.template` to `.env`:
+
+```
+cp env.template .env
+```
+
+2. Provide actual values for API keys in `.env`
