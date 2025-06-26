@@ -12,6 +12,9 @@ import random
 import threading
 import time
 from contextlib import contextmanager
+import shutil
+from jinja2 import Environment, FileSystemLoader
+import secrets
 
 dotenv.load_dotenv()
 
@@ -48,33 +51,57 @@ def prefixed_project_name(base_name: str) -> str:
     prefix = random.choice(PREFIXES)
     return f"{prefix}_{base_name}"
 
-def generate_django_project(project_name: str):
-    os.makedirs(project_name, exist_ok=True)
-    subprocess.run(["django-admin", "startproject", project_name, project_name], check=True)
-    subprocess.run([sys.executable, "manage.py", "startapp", "web"], cwd=project_name, check=True)
+def generate_django_project_from_template(project_name: str, entities: list, app_name: str = "web"):
+    template_dir = "app_template"
+    shutil.copytree(template_dir, project_name)
 
-def write_models_py(project_name: str, entities: list):
-    models_path = os.path.join(project_name, 'web', 'models.py')
-    with open(models_path, 'w') as f:
-        f.write("from django.db import models\n\n")
-        for entity in entities:
-            f.write(f"class {entity['name']}(models.Model):\n")
-            for field_name, field_type in entity['fields'].items():
-                f.write(f"    {field_name} = models.{field_type}\n")
-            f.write("\n")
+    shutil.move(
+        os.path.join(project_name, '_project_'),
+        os.path.join(project_name, project_name)
+    )
+
+    secret_key = secrets.token_urlsafe(50)
+    env = Environment(loader=FileSystemLoader(project_name))
+    context = {
+        'project_name': project_name,
+        'app_name': app_name,
+        'secret_key': secret_key,
+        'entities': entities
+    }
+
+    def render_and_write(template_path, output_path):
+        template = env.get_template(template_path)
+        content = template.render(context)
+        with open(output_path, 'w') as f:
+            f.write(content)
+
+    files_to_template = [
+        # (template_path, output_path)
+        (f'{project_name}/settings.py', os.path.join(project_name, project_name, 'settings.py')),
+        (f'{app_name}/models.py', os.path.join(project_name, app_name, 'models.py')),
+        (f'{project_name}/asgi.py', os.path.join(project_name, project_name, 'asgi.py')),
+        (f'{project_name}/wsgi.py', os.path.join(project_name, project_name, 'wsgi.py')),
+        ('manage.py', os.path.join(project_name, 'manage.py')),
+    ]
+
+    for template_path, output_path in files_to_template:
+        render_and_write(template_path, output_path)
 
 def extract_project_name(prompt: str) -> str:
     """
     Uses Claude 3.5 to extract a Django project name from the prompt.
+    Only the first 50 lines of the prompt are used.
     """
+    # Limit prompt to first 50 lines
+    prompt_limited = "\n".join(prompt.splitlines()[:50])
     client = anthropic.Anthropic()
     system_prompt = """You are an expert Django developer. Given a user prompt, extract a concise, valid Python identifier to use as a Django project name. Only return the name, nothing else."""
     response = client.messages.create(
-        model="claude-3-5-sonnet-latest",
+        model="claude-3-5-haiku-latest",
         max_tokens=10,
         temperature=0,
         system=system_prompt,
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt_limited}]
     )
     return response.content[0].text.strip()
 
@@ -98,20 +125,6 @@ def extract_models_and_fields(prompt: str) -> list:
     )
     return json.loads(response.content[0].text.strip())
 
-def add_app_to_installed_apps(project_name: str, app_name: str = "web"):
-    settings_path = os.path.join(project_name, project_name, "settings.py")
-    with open(settings_path, "r") as f:
-        lines = f.readlines()
-    new_lines = []
-    added = False
-    for idx, line in enumerate(lines):
-        new_lines.append(line)
-        if not added and line.strip().startswith("INSTALLED_APPS") and "[" in line:
-            # Insert the app on the next line after INSTALLED_APPS = [
-            new_lines.append(f"    '{app_name}',\n")
-            added = True
-    with open(settings_path, "w") as f:
-        f.writelines(new_lines)
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
@@ -137,9 +150,7 @@ def main():
         for field, ftype in entity['fields'].items():
             print(f"      {field}: {ftype}")
 
-    generate_django_project(project_name)
-    write_models_py(project_name, with_step_result['entities'])
-    add_app_to_installed_apps(project_name, "web")
+    generate_django_project_from_template(project_name, with_step_result['entities'], "web")
 
     def makemigrations():
         subprocess.run([sys.executable, "manage.py", "makemigrations", "web"], cwd=project_name, check=True)
