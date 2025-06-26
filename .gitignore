@@ -196,3 +196,7 @@ cython_debug/
 # CodeSpeak Dev Environment
 
 test_outputs/
+
+# macOS
+
+.DS_Store
