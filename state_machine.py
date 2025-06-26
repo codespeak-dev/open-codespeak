@@ -86,7 +86,7 @@ class PersistentStateMachine:
                         *state.get(self.HISTORY, []),
                         {
                             "transition": current_transition,
-                            "timestamp": datetime.datetime.now().isoformat(),
+                            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                             **data
                         }
                     ]
