@@ -169,7 +169,13 @@ def main():
         makemigrations()
     print("makemigrations complete.")
 
-    print(f"\nProject '{project_name}' generated in '{project_path}' with entities in web/models.py.")
+    def migrate():
+        subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
+        with with_step("Running migrate..."):
+            migrate()
+        print("migrate complete.")
+
+    print(f"\nProject '{project_name}' generated in '{project_path}'.")
 
 if __name__ == "__main__":
     main()
