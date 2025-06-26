@@ -204,9 +204,9 @@ def main():
 
     def migrate():
         subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
-        with with_step("Running migrate..."):
-            migrate()
-        print("migrate complete.")
+    with with_step("Running migrate..."):
+        migrate()
+    print("migrate complete.")
 
     print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
 
