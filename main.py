@@ -18,7 +18,7 @@ import secrets
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 
-from check_points import DJANGO_PROJECT_CREATED, DONE, MIGRATIONS_COMPLETE, CheckPoints
+from check_points import DJANGO_PROJECT_CREATED, DONE, MAKEMIGRATIONS_COMPLETE, MIGRATIONS_COMPLETE, CheckPoints
 
 dotenv.load_dotenv()
 
@@ -277,7 +277,7 @@ def main():
     with cp.checkpoint(DJANGO_PROJECT_CREATED):
         generate_django_project_from_template(args.target_dir, project_name, with_step_result['entities'], "web")
 
-    with cp.checkpoint(MIGRATIONS_COMPLETE):
+    with cp.checkpoint(MAKEMIGRATIONS_COMPLETE):
         def makemigrations():
             max_retries = 3
             models_file_path = os.path.join(project_path, "web", "models.py")

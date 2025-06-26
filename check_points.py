@@ -5,6 +5,7 @@ import os
 
 
 DJANGO_PROJECT_CREATED = "django_project_created"
+MAKEMIGRATIONS_COMPLETE = "makemigrations_complete"
 MIGRATIONS_COMPLETE = "migrations_complete"
 DONE = "done"
 
