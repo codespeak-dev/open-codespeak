@@ -106,14 +106,20 @@ async def read_{{ entity.name.lower() }}s_by_{{ rel_info.related_to.lower() }}(p
 @app.post("/{{ rel_info.related_to.lower() }}/{parent_id}/{{ entity.name.lower() }}/", response_model={{ entity.name }}Response)
 async def create_{{ entity.name.lower() }}_for_{{ rel_info.related_to.lower() }}(parent_id: int, {{ entity.name.lower() }}: {{ entity.name }}Base):
     try:
-        parent = await sync_to_async({{ rel_info.related_to }}.objects.get)(id=parent_id)
+        {{ rel_field }} = await sync_to_async({{ rel_info.related_to }}.objects.get)(id=parent_id)
+{% for other_rel_field, other_rel_info in entity.relationships.items() %}{% if other_rel_info.type == 'ForeignKey' and other_rel_field != rel_field %}
+        {{ other_rel_field }} = await sync_to_async({{ other_rel_info.related_to }}.objects.get)(id={{ other_rel_field }}_id)
+{% endif %}{% endfor %}
         data = {{ entity.name.lower() }}.dict()
-        data['{{ rel_field }}_id'] = parent_id
-        db_{{ entity.name.lower() }} = {{ entity.name }}(**data)
+        db_{{ entity.name.lower() }} = {{ entity.name }}({{ rel_field }}={{ rel_field }}{% for other_rel_field, other_rel_info in entity.relationships.items() %}{% if other_rel_info.type == 'ForeignKey' and other_rel_field != rel_field %}, {{ other_rel_field }}={{ other_rel_field }}{% endif %}{% endfor %}, **data)
         await sync_to_async(db_{{ entity.name.lower() }}.save)()
-        return {{ entity.name }}Response.from_attributes(db_{{ entity.name.lower() }})
+        return {{ entity.name }}Response.model_validate(db_{{ entity.name.lower() }})
     except {{ rel_info.related_to }}.DoesNotExist:
         raise HTTPException(status_code=404, detail="{{ rel_info.related_to }} not found")
+{% for other_rel_field, other_rel_info in entity.relationships.items() %}{% if other_rel_info.type == 'ForeignKey' and other_rel_field != rel_field %}
+    except {{ other_rel_info.related_to }}.DoesNotExist:
+        raise HTTPException(status_code=404, detail="{{ other_rel_info.related_to }} not found")
+{% endif %}{% endfor %}
 
 {% elif rel_info.type == 'ManyToManyField' %}
 {# Many-to-many relationship endpoints #}
