@@ -157,8 +157,9 @@ def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tupl
 
 class ExtractEntities(Transition):
     def run(self, state: State) -> State:
+        spec = state["spec"]
+
         with with_step("Extracting models and fields from Claude..."):
-            spec = state.data["spec"]
             entities = extract_models_and_fields(spec)
         
         # Get user confirmation for entities

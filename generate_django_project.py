@@ -50,8 +50,8 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
 
 class GenerateDjangoProject(Transition):
     def run(self, state: State) -> State:
-        project_name = state.data["project_name"]
-        target_dir = state.data["target_dir"]
-        entities = state.data["entities"]
+        project_name = state["project_name"]
+        target_dir = state["target_dir"]
+        entities = state["entities"]
         generate_django_project_from_template(target_dir, project_name, entities, "web")
         return state.clone()

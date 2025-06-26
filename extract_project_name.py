@@ -35,13 +35,13 @@ def prefixed_project_name(base_name: str) -> str:
 
 class ExtractProjectName(Transition):
     def run(self, state: State) -> State:
-        spec = state.data["spec"]
+        spec = state["spec"]
         with with_step("Extracting project name from Claude..."):
             project_name_base = extract_project_name(spec)
         project_name = prefixed_project_name(project_name_base)
         print(f"Project name: {Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}")
 
-        project_path = os.path.join(state.data["target_dir"], project_name)
+        project_path = os.path.join(state["target_dir"], project_name)
         os.makedirs(project_path, exist_ok=True)
 
         return state.clone({

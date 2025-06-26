@@ -81,7 +81,7 @@ def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
 
 class MakeMigrations(Transition):
     def run(self, state: State) -> State:
-        project_path = state.data["project_path"]
+        project_path = state["project_path"]
 
         def makemigrations():
             max_retries = 3

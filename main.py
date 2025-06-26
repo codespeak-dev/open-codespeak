@@ -38,8 +38,8 @@ def main():
         "target_dir": args.target_dir,
     }))    
 
-    project_name = state.data["project_name"]
-    project_path = state.data["project_path"]
+    project_name = state["project_name"]
+    project_path = state["project_path"]
 
     print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
 

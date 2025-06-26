@@ -11,11 +11,17 @@ class State:
     def data(self) -> dict:
         return deepcopy(self._data)
     
-    def get(self, key: str) -> Any:
-        return self._data[key]
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._data.get(key, default)
     
     def clone(self, delta: dict = None) -> "State":
         return self.__class__({**deepcopy(self._data), **(delta or {})})
+    
+    def __getitem__(self, key: str) -> Any:
+        return self._data[key]
+    
+    def __setitem__(self, key: str, value: Any) -> None:
+        self._data[key] = value
 
 class Transition:
     def __init__(self):
