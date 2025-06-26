@@ -5,61 +5,18 @@ import sys
 import anthropic
 import json
 import dotenv
-from yaspin import yaspin
-from yaspin.spinners import Spinners
-from pprint import pprint
-import random
-import threading
-import time
-from contextlib import contextmanager
 import shutil
 from jinja2 import Environment, FileSystemLoader
 import secrets
 from typing import List, Dict, Optional, Tuple
 from pydantic import BaseModel
+from colors import Colors
+from extract_project_name import ExtractProjectName
 import inquirer
-
-from check_points import DJANGO_PROJECT_CREATED, DONE, ENTITIES_EXTRACTED, MAKEMIGRATIONS_COMPLETE, MIGRATIONS_COMPLETE, PROJECT_NAME_EXTRACTED, CheckPoints
+from with_step import with_step
+from state_machine import State, run_state_machine
 
 dotenv.load_dotenv()
-
-# ANSI color codes
-class Colors:
-    BRIGHT_CYAN = '\033[96m'
-    BRIGHT_GREEN = '\033[92m'
-    BRIGHT_YELLOW = '\033[93m'
-    BRIGHT_MAGENTA = '\033[95m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
-
-@contextmanager
-def with_step(text):
-    stop_event = threading.Event()
-    elapsed = [0]
-
-    def update_spinner(spinner):
-        while not stop_event.is_set():
-            spinner.text = f"{text} ({elapsed[0]}s)"
-            time.sleep(1)
-            elapsed[0] += 1
-
-    with yaspin(Spinners.dots, text=f"{text} (0s)") as spinner:
-        t = threading.Thread(target=update_spinner, args=(spinner,))
-        t.start()
-        try:
-            yield
-        finally:
-            stop_event.set()
-            t.join()
-            spinner.stop()
-            sys.stdout.write("\r" + " " * (len(spinner.text) + 10) + "\r")
-            sys.stdout.flush()
-            print(f"{text} complete in {elapsed[0]}s.")
-
-PREFIXES = [
-    'majestic', 'brilliant', 'crimson', 'azure', 'verdant', 'lively', 'silent', 'radiant', 'clever', 'mellow',
-    'vivid', 'gentle', 'bold', 'swift', 'serene', 'amber', 'frosty', 'sunny', 'dusky', 'stellar'
-]
 
 class EntityField(BaseModel):
     name: str
@@ -71,10 +28,6 @@ class Entity(BaseModel):
     name: str
     fields: Dict[str, str]
     relationships: Dict[str, Dict[str, str]] = {}
-
-def prefixed_project_name(base_name: str) -> str:
-    prefix = random.choice(PREFIXES)
-    return f"{prefix}_{base_name}"
 
 def generate_django_project_from_template(target_dir: str, project_name: str, entities: List[Entity], app_name: str = "web"):
     template_dir = "app_template"
@@ -116,23 +69,6 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
     for template_path, output_path in files_to_template:
         render_and_write(template_path, output_path)
 
-def extract_project_name(prompt: str) -> str:
-    """
-    Uses Claude 3.5 to extract a Django project name from the prompt.
-    Only the first 50 lines of the prompt are used.
-    """
-    # Limit prompt to first 50 lines
-    prompt_limited = "\n".join(prompt.splitlines()[:50])
-    client = anthropic.Anthropic()
-    system_prompt = """You are an expert Django developer. Given a user prompt, extract a concise, valid Python identifier to use as a Django project name. Only return the name, nothing else."""
-    response = client.messages.create(
-        model="claude-3-5-haiku-latest",
-        max_tokens=10,
-        temperature=0,
-        system=system_prompt,
-        messages=[{"role": "user", "content": prompt_limited}]
-    )
-    return response.content[0].text.strip()
 
 def add_import_to_file(file_path: str, import_statement: str):
     """
@@ -352,90 +288,66 @@ def main():
     args = parser.parse_args()
 
     spec_file = args.filepath
-    cp = None
-    if args.incremental:
-        cp = CheckPoints(args.incremental)
-        spec_file = cp.spec_file
-        print(f"Running in incremental mode:")
-        print(f"  * Spec file: {spec_file}")
-        print(f"  * Target dir: {args.incremental}")
 
     with open(spec_file, 'r') as f:
-        prompt = f.read()
+        spec = f.read()
 
-    if not cp:
-        # Fresh run, no checkpoints to restore from
-        with_step_result = {}
-        with with_step("Extracting project name from Claude..."):
-            project_name_base = extract_project_name(prompt)
-            with_step_result['project_name_base'] = project_name_base
-        project_name = prefixed_project_name(with_step_result['project_name_base'])
-        print(f"Project name: {Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}")
+    state = run_state_machine([
+        ExtractProjectName(),        
+    ], State({
+        "spec": spec,
+        "target_dir": args.target_dir,
+    }))    
 
-        # Generate project in the target directory
-        project_path = os.path.join(args.target_dir, project_name)
+    project_name = state.data["project_name"]
+    project_path = state.data["project_path"]
 
-        # Create project directory if it doesn't exist
-        os.makedirs(project_path, exist_ok=True)
+    with with_step("Extracting models and fields from Claude..."):
+        entities = extract_models_and_fields(spec)
+    
+    # Get user confirmation for entities
+    should_proceed, final_entities = get_entities_confirmation(entities, spec)
+    if not should_proceed:
+        print(f"{Colors.BRIGHT_YELLOW}Project generation cancelled{Colors.END}")
+        sys.exit(0)
+    entities = final_entities
 
-        cp = CheckPoints(project_path, args.filepath)
-        cp.save(PROJECT_NAME_EXTRACTED)
-    else:
-        project_path = cp.target_dir
+    generate_django_project_from_template(args.target_dir, project_name, entities, "web")
 
-    with cp.checkpoint(ENTITIES_EXTRACTED):
-        with with_step("Extracting models and fields from Claude..."):
-            entities = extract_models_and_fields(prompt)
-            with_step_result['entities'] = entities
+    def makemigrations():
+        max_retries = 3
+        models_file_path = os.path.join(project_path, "web", "models.py")
         
-        # Get user confirmation for entities
-        should_proceed, final_entities = get_entities_confirmation(with_step_result['entities'], prompt)
-        if not should_proceed:
-            print(f"{Colors.BRIGHT_YELLOW}Project generation cancelled{Colors.END}")
-            sys.exit(0)
-        with_step_result['entities'] = final_entities
+        for attempt in range(max_retries):
+            try:
+                result = subprocess.run(
+                    [sys.executable, "manage.py", "makemigrations", "web"], 
+                    cwd=project_path, 
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                return  # Success
+            except subprocess.CalledProcessError as e:
+                if attempt < max_retries - 1 and "NameError" in e.stderr:
+                    print(f"  {Colors.BRIGHT_YELLOW}→{Colors.END} Detected missing imports, auto-fixing...")
+                    if fix_missing_imports(e.stderr, models_file_path):
+                        print(f"  {Colors.BRIGHT_GREEN}✓{Colors.END} Imports fixed, retrying...")
+                        continue  # Retry with fixed imports
+                # Re-raise the error if we can't fix it or max retries reached
+                raise
+                
+    with with_step("Running makemigrations for 'web' app..."):
+        makemigrations()
+    print("makemigrations complete.")
 
-    # Generate project in the target directory
-    with cp.checkpoint(DJANGO_PROJECT_CREATED):
-        generate_django_project_from_template(args.target_dir, project_name, with_step_result['entities'], "web")
+    def migrate():
+        subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
+    with with_step("Running migrate..."):
+        migrate()
+    print("migrate complete.")
 
-    with cp.checkpoint(MAKEMIGRATIONS_COMPLETE):
-        def makemigrations():
-            max_retries = 3
-            models_file_path = os.path.join(project_path, "web", "models.py")
-            
-            for attempt in range(max_retries):
-                try:
-                    result = subprocess.run(
-                        [sys.executable, "manage.py", "makemigrations", "web"], 
-                        cwd=project_path, 
-                        check=True,
-                        capture_output=True,
-                        text=True
-                    )
-                    return  # Success
-                except subprocess.CalledProcessError as e:
-                    if attempt < max_retries - 1 and "NameError" in e.stderr:
-                        print(f"  {Colors.BRIGHT_YELLOW}→{Colors.END} Detected missing imports, auto-fixing...")
-                        if fix_missing_imports(e.stderr, models_file_path):
-                            print(f"  {Colors.BRIGHT_GREEN}✓{Colors.END} Imports fixed, retrying...")
-                            continue  # Retry with fixed imports
-                    # Re-raise the error if we can't fix it or max retries reached
-                    raise
-                    
-        with with_step("Running makemigrations for 'web' app..."):
-            makemigrations()
-        print("makemigrations complete.")
-
-    with cp.checkpoint(MIGRATIONS_COMPLETE):
-        def migrate():
-            subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
-        with with_step("Running migrate..."):
-            migrate()
-        print("migrate complete.")
-
-    with cp.checkpoint(DONE):
-        print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
+    print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
 
 if __name__ == "__main__":
     main()

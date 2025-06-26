@@ -5,7 +5,7 @@ from typing import Any
 
 class State:
     def __init__(self, data: dict = None):
-        self._data = data or {}
+        self._data = {"last_executed_transition": "Initial", **(data or {})}
     
     @property
     def data(self) -> dict:
@@ -31,7 +31,7 @@ class Transition:
 def run_state_machine(transitions: list[Transition], initial_state: State) -> State:
     transition_names = [transition.__class__.__name__ for transition in transitions]
     state = initial_state
-    print(state.data)
+    # print(state.data)
     for transition in transitions:
         current_transition = transition.__class__.__name__        
         last_executed_transition = state.get("last_executed_transition")
@@ -42,7 +42,7 @@ def run_state_machine(transitions: list[Transition], initial_state: State) -> St
         state = transition.run(state).clone({
             "last_executed_transition": transition.__class__.__name__
         })
-        print(state.data)
+        # print(state.data)
     return state
 
 if __name__ == "__main__":
