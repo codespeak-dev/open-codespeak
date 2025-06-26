@@ -18,7 +18,7 @@ import secrets
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 
-from check_points import DJANGO_PROJECT_CREATED, DONE, MAKEMIGRATIONS_COMPLETE, MIGRATIONS_COMPLETE, CheckPoints
+from check_points import DJANGO_PROJECT_CREATED, DONE, ENTITIES_EXTRACTED, MAKEMIGRATIONS_COMPLETE, MIGRATIONS_COMPLETE, PROJECT_NAME_EXTRACTED, CheckPoints
 
 dotenv.load_dotenv()
 
@@ -78,7 +78,7 @@ def prefixed_project_name(base_name: str) -> str:
 def generate_django_project_from_template(target_dir: str, project_name: str, entities: List[Entity], app_name: str = "web"):
     template_dir = "app_template"
     project_root = os.path.join(target_dir, project_name)
-    shutil.copytree(template_dir, project_root)
+    shutil.copytree(template_dir, project_root, dirs_exist_ok=True)
 
     shutil.move(
         os.path.join(project_root, '_project_'),
@@ -235,43 +235,54 @@ def main():
     parser.add_argument('--target-dir', 
                        default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
                        help='Target directory for the generated project (defaults to CODESPEAK_TARGET_DIR env var or current directory)')
+    parser.add_argument('--incremental', help='Path to the project output dir')
     args = parser.parse_args()
 
-    with open(args.filepath, 'r') as f:
+    spec_file = args.filepath
+    cp = None
+    if args.incremental:
+        cp = CheckPoints(args.incremental)
+        spec_file = cp.spec_file
+        print(f"Running in incremental mode:")
+        print(f"  * Spec file: {spec_file}")
+        print(f"  * Target dir: {args.incremental}")
+
+    with open(spec_file, 'r') as f:
         prompt = f.read()
 
-    with_step_result = {}
-    with with_step("Extracting project name from Claude..."):
-        project_name_base = extract_project_name(prompt)
-        with_step_result['project_name_base'] = project_name_base
-    project_name = prefixed_project_name(with_step_result['project_name_base'])
-    print(f"Project name: {Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}")
+    if not cp:
+        # Fresh run, no checkpoints to restore from
+        with_step_result = {}
+        with with_step("Extracting project name from Claude..."):
+            project_name_base = extract_project_name(prompt)
+            with_step_result['project_name_base'] = project_name_base
+        project_name = prefixed_project_name(with_step_result['project_name_base'])
+        print(f"Project name: {Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}")
 
-    with with_step("Extracting models and fields from Claude..."):
-        entities = extract_models_and_fields(prompt)
-        with_step_result['entities'] = entities
-    print("Entities extracted:")
-    for entity in with_step_result['entities']:
-        print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
-        for field, ftype in entity.fields.items():
-            print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
-        if entity.relationships:
-            print(f"    {Colors.BRIGHT_MAGENTA}Relationships:{Colors.END}")
-            for rel_field, rel_info in entity.relationships.items():
-                print(f"      {Colors.BRIGHT_YELLOW}{rel_field}{Colors.END}: {rel_info['type']} -> {Colors.BRIGHT_GREEN}{rel_info['related_to']}{Colors.END}")
+        # Generate project in the target directory
+        project_path = os.path.join(args.target_dir, project_name)
 
-    # Create target directory if it doesn't exist
-    os.makedirs(args.target_dir, exist_ok=True)
-    
-    # Generate project in the target directory
-    project_path = os.path.join(args.target_dir, project_name)
+        # Create project directory if it doesn't exist
+        os.makedirs(project_path, exist_ok=True)
 
-    cp = CheckPoints(project_path)
-    current_checkpoint = cp.get_current()
-    if current_checkpoint:
-        print(f"Current checkpoint: {current_checkpoint}")
+        cp = CheckPoints(project_path, args.filepath)
+        cp.save(PROJECT_NAME_EXTRACTED)
     else:
-        print("No checkpoint found, starting from scratch.")
+        project_path = cp.target_dir
+
+    with cp.checkpoint(ENTITIES_EXTRACTED):
+        with with_step("Extracting models and fields from Claude..."):
+            entities = extract_models_and_fields(prompt)
+            with_step_result['entities'] = entities
+        print("Entities extracted:")
+        for entity in with_step_result['entities']:
+            print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
+            for field, ftype in entity.fields.items():
+                print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
+            if entity.relationships:
+                print(f"    {Colors.BRIGHT_MAGENTA}Relationships:{Colors.END}")
+                for rel_field, rel_info in entity.relationships.items():
+                    print(f"      {Colors.BRIGHT_YELLOW}{rel_field}{Colors.END}: {rel_info['type']} -> {Colors.BRIGHT_GREEN}{rel_info['related_to']}{Colors.END}")
 
     # Generate project in the target directory
     with cp.checkpoint(DJANGO_PROJECT_CREATED):
