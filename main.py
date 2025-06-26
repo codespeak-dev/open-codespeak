@@ -225,38 +225,40 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         system=system_prompt,
         messages=[{"role": "user", "content": prompt}]
     )
-    raw_data = json.loads(response.content[0].text.strip())
-    return [Entity(**item) for item in raw_data]
+    return json.loads(response.content[0].text.strip())
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
-    parser.add_argument('filepath', help='Path to the input file')
+    parser.add_argument('filepath', nargs='?', default=None, help='Path to the input file (optional if using --incremental)')
     parser.add_argument('--target-dir', 
                        default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
                        help='Target directory for the generated project (defaults to CODESPEAK_TARGET_DIR env var or current directory)')
     parser.add_argument('--incremental', help='Path to the project output dir')
     args = parser.parse_args()
 
+    # Validate arguments
+    if not args.filepath and not args.incremental:
+        parser.error("Either filepath or --incremental must be provided")
+
     spec_file = args.filepath
-    cp = None
+    cpm = None
     if args.incremental:
-        cp = CheckPoints(args.incremental)
-        spec_file = cp.spec_file
+        cpm = CheckPoints(args.incremental)
+        spec_file = cpm.spec_file
         print(f"Running in incremental mode:")
         print(f"  * Spec file: {spec_file}")
         print(f"  * Target dir: {args.incremental}")
+        print(f"  * Checkpoint: {cpm.get_current()}")
 
     with open(spec_file, 'r') as f:
         prompt = f.read()
 
-    if not cp:
+    if not cpm:
         # Fresh run, no checkpoints to restore from
-        with_step_result = {}
         with with_step("Extracting project name from Claude..."):
             project_name_base = extract_project_name(prompt)
-            with_step_result['project_name_base'] = project_name_base
-        project_name = prefixed_project_name(with_step_result['project_name_base'])
+        project_name = prefixed_project_name(project_name_base)
         print(f"Project name: {Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}")
 
         # Generate project in the target directory
@@ -265,30 +267,35 @@ def main():
         # Create project directory if it doesn't exist
         os.makedirs(project_path, exist_ok=True)
 
-        cp = CheckPoints(project_path, args.filepath)
-        cp.save(PROJECT_NAME_EXTRACTED)
+        cpm = CheckPoints(project_path, args.filepath)
+        cpm.save(PROJECT_NAME_EXTRACTED, {"project_name": project_name})
     else:
-        project_path = cp.target_dir
+        project_path = cpm.target_dir
+        project_name = cpm.data("project_name")
 
-    with cp.checkpoint(ENTITIES_EXTRACTED):
-        with with_step("Extracting models and fields from Claude..."):
-            entities = extract_models_and_fields(prompt)
-            with_step_result['entities'] = entities
-        print("Entities extracted:")
-        for entity in with_step_result['entities']:
-            print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
-            for field, ftype in entity.fields.items():
-                print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
-            if entity.relationships:
-                print(f"    {Colors.BRIGHT_MAGENTA}Relationships:{Colors.END}")
-                for rel_field, rel_info in entity.relationships.items():
-                    print(f"      {Colors.BRIGHT_YELLOW}{rel_field}{Colors.END}: {rel_info['type']} -> {Colors.BRIGHT_GREEN}{rel_info['related_to']}{Colors.END}")
+    with cpm.checkpoint(ENTITIES_EXTRACTED, "entities.json") as cp:
+        if cp.should_run:
+            with with_step("Extracting models and fields from Claude..."):
+                entities_json = extract_models_and_fields(prompt)
+            cp.result = entities_json
+
+    entities = [Entity(**entity) for entity in cp.result]
+    print("Entities extracted:")
+    for entity in entities:
+        print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
+        for field, ftype in entity.fields.items():
+            print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
+        if entity.relationships:
+            print(f"    {Colors.BRIGHT_MAGENTA}Relationships:{Colors.END}")
+            for rel_field, rel_info in entity.relationships.items():
+                print(f"      {Colors.BRIGHT_YELLOW}{rel_field}{Colors.END}: {rel_info['type']} -> {Colors.BRIGHT_GREEN}{rel_info['related_to']}{Colors.END}")
 
     # Generate project in the target directory
-    with cp.checkpoint(DJANGO_PROJECT_CREATED):
-        generate_django_project_from_template(args.target_dir, project_name, with_step_result['entities'], "web")
+    with cpm.checkpoint(DJANGO_PROJECT_CREATED) as cp:
+        if cp.should_run:
+            generate_django_project_from_template(args.target_dir, project_name, entities, "web")
 
-    with cp.checkpoint(MAKEMIGRATIONS_COMPLETE):
+    with cpm.checkpoint(MAKEMIGRATIONS_COMPLETE) as cp:
         def makemigrations():
             max_retries = 3
             models_file_path = os.path.join(project_path, "web", "models.py")
@@ -311,20 +318,22 @@ def main():
                             continue  # Retry with fixed imports
                     # Re-raise the error if we can't fix it or max retries reached
                     raise
-                    
-        with with_step("Running makemigrations for 'web' app..."):
-            makemigrations()
-        print("makemigrations complete.")
+        if cp.should_run:
+            with with_step("Running makemigrations for 'web' app..."):
+                makemigrations()
+            print("makemigrations complete.")
 
-    with cp.checkpoint(MIGRATIONS_COMPLETE):
+    with cpm.checkpoint(MIGRATIONS_COMPLETE) as cp:
         def migrate():
             subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
-        with with_step("Running migrate..."):
-            migrate()
-        print("migrate complete.")
+        if cp.should_run:
+            with with_step("Running migrate..."):
+                migrate()
+            print("migrate complete.")
 
-    with cp.checkpoint(DONE):
-        print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
+    with cpm.checkpoint(DONE) as cp:
+        if cp.should_run:
+            print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
 
 if __name__ == "__main__":
     main()
