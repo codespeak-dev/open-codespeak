@@ -20,6 +20,15 @@ from pydantic import BaseModel
 
 dotenv.load_dotenv()
 
+# ANSI color codes
+class Colors:
+    BRIGHT_CYAN = '\033[96m'
+    BRIGHT_GREEN = '\033[92m'
+    BRIGHT_YELLOW = '\033[93m'
+    BRIGHT_MAGENTA = '\033[95m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+
 @contextmanager
 def with_step(text):
     stop_event = threading.Event()
@@ -165,20 +174,20 @@ def main():
         project_name_base = extract_project_name(prompt)
         with_step_result['project_name_base'] = project_name_base
     project_name = prefixed_project_name(with_step_result['project_name_base'])
-    print(f"Project name: {project_name}")
+    print(f"Project name: {Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}")
 
     with with_step("Extracting models and fields from Claude..."):
         entities = extract_models_and_fields(prompt)
         with_step_result['entities'] = entities
     print("Entities extracted:")
     for entity in with_step_result['entities']:
-        print(f"  - {entity.name}")
+        print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
         for field, ftype in entity.fields.items():
-            print(f"      {field}: {ftype}")
+            print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
         if entity.relationships:
-            print("    Relationships:")
+            print(f"    {Colors.BRIGHT_MAGENTA}Relationships:{Colors.END}")
             for rel_field, rel_info in entity.relationships.items():
-                print(f"      {rel_field}: {rel_info['type']} -> {rel_info['related_to']}")
+                print(f"      {Colors.BRIGHT_YELLOW}{rel_field}{Colors.END}: {rel_info['type']} -> {Colors.BRIGHT_GREEN}{rel_info['related_to']}{Colors.END}")
 
     # Create target directory if it doesn't exist
     os.makedirs(args.target_dir, exist_ok=True)
@@ -199,7 +208,7 @@ def main():
             migrate()
         print("migrate complete.")
 
-    print(f"\nProject '{project_name}' generated in '{project_path}'.")
+    print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
 
 if __name__ == "__main__":
     main()
