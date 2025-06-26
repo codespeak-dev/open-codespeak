@@ -51,17 +51,18 @@ def prefixed_project_name(base_name: str) -> str:
     prefix = random.choice(PREFIXES)
     return f"{prefix}_{base_name}"
 
-def generate_django_project_from_template(project_name: str, entities: list, app_name: str = "web"):
+def generate_django_project_from_template(target_dir: str, project_name: str, entities: list, app_name: str = "web"):
     template_dir = "app_template"
-    shutil.copytree(template_dir, project_name)
+    project_root = os.path.join(target_dir, project_name)
+    shutil.copytree(template_dir, project_root)
 
     shutil.move(
-        os.path.join(project_name, '_project_'),
-        os.path.join(project_name, project_name)
+        os.path.join(project_root, '_project_'),
+        os.path.join(project_root, project_name)
     )
 
     secret_key = secrets.token_urlsafe(50)
-    env = Environment(loader=FileSystemLoader(project_name))
+    env = Environment(loader=FileSystemLoader(project_root))
     context = {
         'project_name': project_name,
         'app_name': app_name,
@@ -75,13 +76,15 @@ def generate_django_project_from_template(project_name: str, entities: list, app
         with open(output_path, 'w') as f:
             f.write(content)
 
+
+    project_settings_root = os.path.join(project_root, project_name)
     files_to_template = [
         # (template_path, output_path)
-        (f'{project_name}/settings.py', os.path.join(project_name, project_name, 'settings.py')),
-        (f'{app_name}/models.py', os.path.join(project_name, app_name, 'models.py')),
-        (f'{project_name}/asgi.py', os.path.join(project_name, project_name, 'asgi.py')),
-        (f'{project_name}/wsgi.py', os.path.join(project_name, project_name, 'wsgi.py')),
-        ('manage.py', os.path.join(project_name, 'manage.py')),
+        (f'{project_name}/settings.py', os.path.join(project_settings_root, 'settings.py')),
+        (f'{app_name}/models.py', os.path.join(project_root, app_name, 'models.py')),
+        (f'{project_name}/asgi.py', os.path.join(project_settings_root, 'asgi.py')),
+        (f'{project_name}/wsgi.py', os.path.join(project_settings_root, 'wsgi.py')),
+        ('manage.py', os.path.join(project_root, 'manage.py')),
     ]
 
     for template_path, output_path in files_to_template:
@@ -129,6 +132,9 @@ def extract_models_and_fields(prompt: str) -> list:
 def main():
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
     parser.add_argument('filepath', help='Path to the input file')
+    parser.add_argument('--target-dir', 
+                       default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
+                       help='Target directory for the generated project (defaults to CODESPEAK_TARGET_DIR env var or current directory)')
     args = parser.parse_args()
 
     with open(args.filepath, 'r') as f:
@@ -150,15 +156,20 @@ def main():
         for field, ftype in entity['fields'].items():
             print(f"      {field}: {ftype}")
 
-    generate_django_project_from_template(project_name, with_step_result['entities'], "web")
+    # Create target directory if it doesn't exist
+    os.makedirs(args.target_dir, exist_ok=True)
+    
+    # Generate project in the target directory
+    project_path = os.path.join(args.target_dir, project_name)
+    generate_django_project_from_template(args.target_dir, project_name, with_step_result['entities'], "web")
 
     def makemigrations():
-        subprocess.run([sys.executable, "manage.py", "makemigrations", "web"], cwd=project_name, check=True)
+        subprocess.run([sys.executable, "manage.py", "makemigrations", "web"], cwd=project_path, check=True)
     with with_step("Running makemigrations for 'web' app..."):
         makemigrations()
     print("makemigrations complete.")
 
-    print(f"\nProject '{project_name}' generated with entities in web/models.py.")
+    print(f"\nProject '{project_name}' generated in '{project_path}' with entities in web/models.py.")
 
 if __name__ == "__main__":
     main()
