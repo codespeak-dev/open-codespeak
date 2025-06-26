@@ -15,8 +15,9 @@ from contextlib import contextmanager
 import shutil
 from jinja2 import Environment, FileSystemLoader
 import secrets
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from pydantic import BaseModel
+import inquirer
 
 from check_points import DJANGO_PROJECT_CREATED, DONE, ENTITIES_EXTRACTED, MAKEMIGRATIONS_COMPLETE, MIGRATIONS_COMPLETE, PROJECT_NAME_EXTRACTED, CheckPoints
 
@@ -231,6 +232,115 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
     raw_data = json.loads(response.content[0].text.strip())
     return [Entity(**item) for item in raw_data]
 
+def refine_entities(original_prompt: str, entities: List[Entity], feedback: str) -> List[Entity]:
+    """
+    Use Claude to refine entities based on user feedback.
+    """
+    client = anthropic.Anthropic()
+    
+    # Convert entities to JSON for the prompt
+    entities_json = json.dumps([{
+        "name": entity.name,
+        "fields": entity.fields,
+        "relationships": entity.relationships
+    } for entity in entities], indent=2)
+    
+    system_prompt = (
+        "You are an expert Django developer. Given the original user prompt, current entities, and user feedback, "
+        "modify the entities accordingly. Return a JSON array of objects with the same structure: "
+        "- 'name' (model name)"
+        "- 'fields' (object mapping field names to Django field types)"
+        "- 'relationships' (object mapping field names to relationship info with 'type' and 'related_to' keys)"
+        "Only return the JSON array, no explanation."
+    )
+    
+    user_message = f"""Original prompt:
+{original_prompt}
+
+Current entities:
+{entities_json}
+
+User feedback:
+{feedback}
+
+Please modify the entities based on the feedback."""
+    
+    response = client.messages.create(
+        model="claude-3-5-sonnet-latest",
+        max_tokens=1024,
+        temperature=0,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}]
+    )
+    
+    raw_data = json.loads(response.content[0].text.strip())
+    return [Entity(**item) for item in raw_data]
+
+def display_entities(entities: List[Entity]):
+    """Display entities in a formatted way"""
+    print("Entities extracted:")
+    for entity in entities:
+        print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
+        for rel_field, rel_info in entity.relationships.items():
+            print(f"      {Colors.BRIGHT_MAGENTA}{rel_field}{Colors.END}: {rel_info['type']} -> {Colors.BRIGHT_GREEN}{rel_info['related_to']}{Colors.END}")
+        for field, ftype in entity.fields.items():
+            print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
+
+def get_entities_confirmation(entities: List[Entity], original_prompt: str = "") -> Tuple[bool, List[Entity]]:
+    """
+    Ask user to confirm entities or provide feedback for changes.
+    Returns (should_proceed, final_entities)
+    """
+    current_entities = entities
+    
+    while True:
+        display_entities(current_entities)
+        print(f"\n{Colors.BOLD}Please review the extracted entities:{Colors.END}")
+        
+        questions = [
+            inquirer.List(
+                'action',
+                message="What would you like to do?",
+                choices=[
+                    ('Yes, proceed with these entities', 'proceed'),
+                    ('Modify the entities', 'modify')
+                ],
+                carousel=True
+            )
+        ]
+        
+        try:
+            answers = inquirer.prompt(questions)
+            if not answers:  # User pressed Ctrl+C
+                print(f"\n{Colors.BRIGHT_YELLOW}Cancelled by user{Colors.END}")
+                sys.exit(0)
+            
+            action = answers['action']
+            
+            if action == 'proceed':
+                return True, current_entities
+            elif action == 'modify':
+                feedback_question = [
+                    inquirer.Text(
+                        'feedback',
+                        message="What would you like to change?",
+                        validate=lambda _, x: len(x.strip()) > 0 or "Please provide feedback"
+                    )
+                ]
+                
+                feedback_answers = inquirer.prompt(feedback_question)
+                if not feedback_answers:
+                    continue
+                
+                feedback = feedback_answers['feedback']
+                print(f"\n{Colors.BRIGHT_CYAN}Refining entities...{Colors.END}")
+                current_entities = refine_entities(original_prompt, current_entities, feedback)
+                print(f"{Colors.BRIGHT_GREEN}Entities updated{Colors.END}\n")
+                
+        except KeyboardInterrupt:
+            print(f"\n{Colors.BRIGHT_YELLOW}Cancelled by user{Colors.END}")
+            sys.exit(0)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
@@ -277,15 +387,13 @@ def main():
         with with_step("Extracting models and fields from Claude..."):
             entities = extract_models_and_fields(prompt)
             with_step_result['entities'] = entities
-        print("Entities extracted:")
-        for entity in with_step_result['entities']:
-            print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
-            for field, ftype in entity.fields.items():
-                print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
-            if entity.relationships:
-                print(f"    {Colors.BRIGHT_MAGENTA}Relationships:{Colors.END}")
-                for rel_field, rel_info in entity.relationships.items():
-                    print(f"      {Colors.BRIGHT_YELLOW}{rel_field}{Colors.END}: {rel_info['type']} -> {Colors.BRIGHT_GREEN}{rel_info['related_to']}{Colors.END}")
+        
+        # Get user confirmation for entities
+        should_proceed, final_entities = get_entities_confirmation(with_step_result['entities'], prompt)
+        if not should_proceed:
+            print(f"{Colors.BRIGHT_YELLOW}Project generation cancelled{Colors.END}")
+            sys.exit(0)
+        with_step_result['entities'] = final_entities
 
     # Generate project in the target directory
     with cp.checkpoint(DJANGO_PROJECT_CREATED):
