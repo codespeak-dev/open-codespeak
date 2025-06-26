@@ -7,7 +7,7 @@ import dotenv
 from colors import Colors
 from extract_entities import ExtractEntities
 from extract_project_name import ExtractProjectName
-from generate_django_project import generate_django_project_from_template
+from generate_django_project import GenerateDjangoProject, generate_django_project_from_template
 from with_step import with_step
 from state_machine import State, run_state_machine
 
@@ -107,6 +107,7 @@ def main():
     state = run_state_machine([
         ExtractProjectName(),        
         ExtractEntities(),
+        GenerateDjangoProject(),
     ], State({
         "spec": spec,
         "target_dir": args.target_dir,
@@ -114,9 +115,6 @@ def main():
 
     project_name = state.data["project_name"]
     project_path = state.data["project_path"]
-    entities = state.data["entities"]
-
-    generate_django_project_from_template(args.target_dir, project_name, entities, "web")
 
     def makemigrations():
         max_retries = 3
