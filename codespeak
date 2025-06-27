@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+    echo "Error: uv is not installed. Please install uv first."
+    echo "Visit https://docs.astral.sh/uv/getting-started/installation/ for installation instructions."
+    exit 1
+fi
+
+uv run main.py "$@"

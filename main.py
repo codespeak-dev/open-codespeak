@@ -14,6 +14,7 @@ dotenv.load_dotenv()
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
+    parser.prog = 'codespeak'
     parser.add_argument('filepath', nargs='?', help='Path to the input file (required when not in incremental mode)')
     parser.add_argument('--target-dir', 
                        default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
