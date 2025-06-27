@@ -7,10 +7,11 @@ from extract_project_name import ExtractProjectName
 from generate_django_project import GenerateDjangoProject
 from makemigrations import MakeMigrations
 from migrate import Migrate
+from generate_integration_tests import GenerateIntegrationTests
+from reconcile_integration_tests import ReconcileIntegrationTests
 from state_machine import Done, PersistentStateMachine
 
 dotenv.load_dotenv()
-
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
@@ -50,6 +51,8 @@ def main():
             GenerateDjangoProject(),
             MakeMigrations(),
             Migrate(),
+            GenerateIntegrationTests(),
+            ReconcileIntegrationTests(),
             Done(),
         ], 
         initial_state, 
