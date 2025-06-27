@@ -58,8 +58,11 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         "Do not include any explanation, only valid JSON."
     )
 
-    with with_streaming_step("Figuring out the data model...") as token_count:
+    with with_streaming_step("Figuring out the data model...") as (input_tokens, output_tokens):
         response_text = ""
+        # Count input tokens from system prompt and user prompt
+        input_tokens[0] = len((system_prompt + prompt).split())
+
         with client.messages.stream(
             model="claude-3-7-sonnet-latest",
             max_tokens=10000,
@@ -69,7 +72,7 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         ) as stream:
             for text in stream.text_stream:
                 response_text += text
-                token_count[0] += len(text.split())
+                output_tokens[0] += len(text.split())
 
     try:
         return json.loads(response_text.strip())
@@ -107,8 +110,11 @@ User feedback:
 
 Please modify the entities based on the feedback."""
 
-    with with_streaming_step("Refining entities based on feedback...") as token_count:
+    with with_streaming_step("Refining entities based on feedback...") as (input_tokens, output_tokens):
         response_text = ""
+        # Count input tokens from system prompt and user message
+        input_tokens[0] = len((system_prompt + user_message).split())
+
         with client.messages.stream(
             model="claude-3-5-sonnet-latest",
             max_tokens=8192,
@@ -118,7 +124,7 @@ Please modify the entities based on the feedback."""
         ) as stream:
             for text in stream.text_stream:
                 response_text += text
-                token_count[0] += len(text.split())
+                output_tokens[0] += len(text.split())
 
     try:
         return json.loads(response_text.strip())

@@ -37,12 +37,13 @@ def with_step(text):
 def with_streaming_step(text):
     stop_event = threading.Event()
     elapsed = [0]
-    token_count = [0]
+    input_tokens = [0]
+    output_tokens = [0]
 
     def update_spinner(spinner):
         while not stop_event.is_set():
-            if token_count[0] > 0:
-                spinner.text = f"{text} {Colors.GREY}{Colors.DIM}({elapsed[0]}s, {token_count[0]} tokens){Colors.END}"
+            if output_tokens[0] > 0:
+                spinner.text = f"{text} {Colors.GREY}{Colors.DIM}({elapsed[0]}s, ↑ {input_tokens[0]} + ↓ {output_tokens[0]} tokens){Colors.END}"
             else:
                 spinner.text = f"{text} {Colors.GREY}{Colors.DIM}({elapsed[0]}s){Colors.END}"
             time.sleep(1)
@@ -52,14 +53,14 @@ def with_streaming_step(text):
         t = threading.Thread(target=update_spinner, args=(spinner,))
         t.start()
         try:
-            yield token_count
+            yield (input_tokens, output_tokens)
         finally:
             stop_event.set()
             t.join()
             spinner.stop()
             sys.stdout.write("\r" + " " * (len(spinner.text) + 10) + "\r")
             sys.stdout.flush()
-            if token_count[0] > 0:
-                print(f"{text} complete in {Colors.GREY}{Colors.DIM}{elapsed[0]}s ({token_count[0]} tokens){Colors.END}.")
+            if output_tokens[0] > 0:
+                print(f"{text} complete in {Colors.GREY}{Colors.DIM}{elapsed[0]}s (↑ {input_tokens[0]} + ↓ {output_tokens[0]} tokens){Colors.END}.")
             else:
                 print(f"{text} complete in {Colors.GREY}{Colors.DIM}{elapsed[0]}s{Colors.END}.")

@@ -39,8 +39,11 @@ def generate_integration_tests(views_content: str) -> str:
     """Use Claude to generate integration tests based on views.py"""
     client = anthropic.Anthropic()
 
-    with with_streaming_step("Generating integration tests with Claude...") as token_count:
+    with with_streaming_step("Generating integration tests with Claude...") as (input_tokens, output_tokens):
         response_text = ""
+        # Count input tokens from system prompt and views content
+        input_tokens[0] = len((INTEGRATION_TEST_SYSTEM_PROMPT + views_content).split())
+
         with client.messages.stream(
             model="claude-3-5-sonnet-latest",
             max_tokens=8192,
@@ -50,7 +53,7 @@ def generate_integration_tests(views_content: str) -> str:
         ) as stream:
             for text in stream.text_stream:
                 response_text += text
-                token_count[0] += len(text.split())
+                output_tokens[0] += len(text.split())
 
     return response_text.strip()
 
