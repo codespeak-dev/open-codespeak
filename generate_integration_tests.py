@@ -6,7 +6,7 @@ import json
 from typing import Dict, Any, Optional
 from colors import Colors
 from state_machine import State, Transition
-from with_step import with_step, with_streaming_step
+from with_step import with_streaming_step
 
 
 INTEGRATION_TEST_SYSTEM_PROMPT = """You are an expert Django developer. Given Django views.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
@@ -69,16 +69,11 @@ class GenerateIntegrationTests(Transition):
     def run(self, state: State) -> State:
         project_path = state["project_path"]
 
-        with with_step("Reading views.py file..."):
-            views_content = read_views_file(project_path)
+        views_content = read_views_file(project_path)
 
         test_code = generate_integration_tests(views_content)
-
-        with with_step("Saving integration tests to project..."):
-            test_file_path = save_test_to_project(test_code, project_path)
-            print(f"Saved test to: {Colors.BRIGHT_CYAN}{test_file_path}{Colors.END}")
+        test_file_path = save_test_to_project(test_code, project_path)
 
         return state.clone({
-            "integration_test_code": test_code,
             "integration_test_path": test_file_path
         })
