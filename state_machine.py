@@ -83,11 +83,14 @@ class PersistentStateMachine:
             transitions: list[Transition], 
             initial_state: dict, 
             state_file: Callable[[State], str | None], 
-            context: Context = None            
+            context: Context = None,
+            start_from: str = None
         ):
         self.transitions = transitions
         self.state_file = state_file
         self.context = context or Context()
+        self.start_from = start_from
+        
         self.current_state = State(
             data=initial_state,
             _internal_data={
@@ -108,6 +111,17 @@ class PersistentStateMachine:
         for transition in self.transitions:
             current_transition = transition.__class__.__name__        
             last_executed_transition = state.internal.get(self.LAST_EXECUTED_TRANSITION)
+
+            if self.start_from:
+                sf_index = transition_names.index(self.start_from)
+                if sf_index < 0:
+                    raise StateMachineError(f"Transition {self.start_from} not found")
+                
+                if sf_index > transition_names.index(last_executed_transition) + 1:
+                    raise StateMachineError(f"Transition {self.start_from} is not a valid starting point")
+
+                if sf_index > 0:
+                    last_executed_transition = self.transitions[sf_index - 1].__class__.__name__                
 
             if last_executed_transition in transition_names and transition_names.index(last_executed_transition) >= transition_names.index(current_transition):
                 print(f"Transition {current_transition} has already been executed, skipping...")
