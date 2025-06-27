@@ -98,6 +98,12 @@ class MakeMigrations(Transition):
                     )
                     return  # Success
                 except subprocess.CalledProcessError as e:
+                    print(f"  {Colors.BRIGHT_RED}✗{Colors.END} makemigrations failed:")
+                    if e.stdout:
+                        print(f"    stdout: {e.stdout}")
+                    if e.stderr:
+                        print(f"    stderr: {e.stderr}")
+
                     if attempt < max_retries - 1 and "NameError" in e.stderr:
                         print(f"  {Colors.BRIGHT_YELLOW}→{Colors.END} Detected missing imports, auto-fixing...")
                         if fix_missing_imports(e.stderr, models_file_path):
