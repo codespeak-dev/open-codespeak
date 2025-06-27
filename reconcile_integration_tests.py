@@ -57,7 +57,7 @@ def read_current_test_code(test_file_path: str) -> str:
 def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) -> str:
     """Execute a tool call for the issue fixing agent"""
     # Log tool call start
-    print(f"{Colors.BRIGHT_BLUE}🔧 TOOL CALL: {tool_name}{Colors.END}")
+    print(f"{Colors.BRIGHT_YELLOW}🔧 TOOL CALL: {tool_name}{Colors.END}")
     print(f"   Input: {json.dumps(tool_input, indent=2)}")
 
     try:
