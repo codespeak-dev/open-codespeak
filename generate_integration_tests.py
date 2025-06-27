@@ -5,7 +5,7 @@ import anthropic
 import json
 from typing import Dict, Any, Optional
 from colors import Colors
-from state_machine import State, Transition
+from state_machine import State, Transition, Context
 from with_step import with_streaming_step
 
 
@@ -69,7 +69,7 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
 
 
 class GenerateIntegrationTests(Transition):
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         project_path = state["project_path"]
 
         views_content = read_views_file(project_path)

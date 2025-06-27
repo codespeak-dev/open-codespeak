@@ -9,7 +9,8 @@ from makemigrations import MakeMigrations
 from migrate import Migrate
 from generate_integration_tests import GenerateIntegrationTests
 from reconcile_integration_tests import ReconcileIntegrationTests
-from state_machine import Done, PersistentStateMachine
+from plan_screens import PlanScreens
+from state_machine import Done, PersistentStateMachine, Context
 
 dotenv.load_dotenv()
 
@@ -21,6 +22,7 @@ def main():
                        default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
                        help='Target directory for the generated project (defaults to CODESPEAK_TARGET_DIR env var or current directory)')
     parser.add_argument('--incremental', help='Path to the project output dir')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
 
     if args.incremental:
@@ -53,10 +55,12 @@ def main():
             Migrate(),
             GenerateIntegrationTests(),
             ReconcileIntegrationTests(),
+            PlanScreens(),
             Done(),
         ], 
         initial_state, 
-        lambda state: os.path.join(state["project_path"], "codespeak_state.json") if "project_path" in state else None
+        lambda state: os.path.join(state["project_path"], "codespeak_state.json") if "project_path" in state else None,
+        Context(verbose=args.verbose)
     )
 
     state = psm.run_state_machine()

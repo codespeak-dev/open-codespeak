@@ -1,12 +1,12 @@
 import subprocess
 import sys
 
-from state_machine import State, Transition
+from state_machine import State, Transition, Context
 from with_step import with_step
 
 
 class Migrate(Transition):
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         project_path = state["project_path"]
 
         def migrate():

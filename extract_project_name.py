@@ -1,7 +1,7 @@
 import os
 import random
 from colors import Colors
-from state_machine import State, Transition
+from state_machine import State, Transition, Context
 import anthropic
 
 from with_step import with_step
@@ -34,7 +34,7 @@ def prefixed_project_name(base_name: str) -> str:
     return f"{prefix}_{base_name}"
 
 class ExtractProjectName(Transition):
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         spec = state["spec"]
         with with_step("Extracting project name from Claude..."):
             project_name_base = extract_project_name(spec)

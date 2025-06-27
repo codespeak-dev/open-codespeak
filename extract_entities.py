@@ -3,7 +3,7 @@ import sys
 import anthropic
 import inquirer
 from colors import Colors
-from state_machine import State, Transition
+from state_machine import State, Transition, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Tuple
@@ -199,7 +199,7 @@ def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tupl
             sys.exit(0)
 
 class ExtractEntities(Transition):
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         spec = state["spec"]
 
         entities = extract_models_and_fields(spec)
@@ -209,7 +209,7 @@ class ExtractEntities(Transition):
         })
 
 class RefineEntities(Transition):
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         spec = state["spec"]
         entities = state["entities"]
 

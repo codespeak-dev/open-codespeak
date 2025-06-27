@@ -5,7 +5,7 @@ import secrets
 from jinja2 import Environment, FileSystemLoader
 
 from extract_entities import Entity
-from state_machine import State, Transition
+from state_machine import State, Transition, Context
 
 
 def generate_django_project_from_template(target_dir: str, project_name: str, entities: List[Entity], app_name: str = "web"):
@@ -49,7 +49,7 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
         render_and_write(template_path, output_path)
 
 class GenerateDjangoProject(Transition):
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         project_name = state["project_name"]
         target_dir = state["target_dir"]
         entities = state["entities"]
@@ -57,7 +57,7 @@ class GenerateDjangoProject(Transition):
         generate_django_project_from_template(target_dir, project_name, entities, "web")
         return state.clone()
 
-    def cleanup(self, state: State):
+    def cleanup(self, state: State, context: Context = None):
         target_dir = state["target_dir"]
         project_name = state["project_name"]
 

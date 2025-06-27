@@ -6,6 +6,10 @@ import os
 from typing import Any, Callable
 
 
+class Context:
+    def __init__(self, verbose: bool = False):
+        self.verbose = verbose
+
 class State:
     def __init__(self, data: dict = None):
         self._data = data or {}
@@ -34,14 +38,14 @@ class Transition:
         pass
 
     @abstractmethod
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         pass
 
-    def cleanup(self, state: State):
+    def cleanup(self, state: State, context: Context = None):
         pass
 
 class Done(Transition):
-    def run(self, state: State) -> State:
+    def run(self, state: State, context: Context = None) -> State:
         return state.clone()
 
 class PersistentStateMachine:
@@ -51,9 +55,10 @@ class PersistentStateMachine:
     FAILURE_INFO = "__failure_info"
     HISTORY = "__history"
 
-    def __init__(self, transitions: list[Transition], initial_state: dict, state_file: Callable[[State], str | None]):
+    def __init__(self, transitions: list[Transition], initial_state: dict, state_file: Callable[[State], str | None], context: Context = None):
         self.transitions = transitions
         self.state_file = state_file
+        self.context = context or Context()
         self.current_state = State({self.LAST_EXECUTED_TRANSITION: self.INITIAL_TRANSITION, **initial_state})
 
         state_file = self.state_file(self.current_state)
@@ -78,7 +83,7 @@ class PersistentStateMachine:
             last_failed_transition = state.get(self.LAST_FAILED_TRANSITION)
             if last_failed_transition == current_transition and last_failed_transition != last_executed_transition:
                 print(f"Transition {current_transition} failed last time, cleaning up...")
-                transition.cleanup(state)
+                transition.cleanup(state, self.context)
 
             def append_to_history(data):
                 return {
@@ -93,7 +98,7 @@ class PersistentStateMachine:
                 }
 
             try:
-                state = transition.run(state).clone({
+                state = transition.run(state, self.context).clone({
                     self.LAST_EXECUTED_TRANSITION: current_transition,
                     **append_to_history({})
                 })
@@ -119,13 +124,13 @@ class PersistentStateMachine:
 if __name__ == "__main__":
 
     class Step1(Transition):
-        def run(self, state: State) -> State:
+        def run(self, state: State, context: Context = None) -> State:
             return state.clone({
                 "project_name": "My Project"
             })
 
     class Step2(Transition):
-        def run(self, state: State) -> State:
+        def run(self, state: State, context: Context = None) -> State:
             return state.clone({
                 "entities": [
                     {
