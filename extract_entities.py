@@ -25,7 +25,7 @@ def to_entities(raw_data):
 
 def extract_models_and_fields(prompt: str) -> List[Entity]:
     """
-    Uses Claude 3.5 to extract a list of Django models and their fields from the prompt.
+    Uses Claude to extract a list of Django models and their fields from the prompt.
     Returns a list of Entity objects with fields and relationships.
     """
     client = anthropic.Anthropic()
@@ -43,7 +43,7 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         "Do not include any explanation, only valid JSON."
     )
     response = client.messages.create(
-        model="claude-3-5-sonnet-latest",
+        model="claude-3-7-sonnet-latest",
         max_tokens=2048,
         temperature=0,
         system=system_prompt,
