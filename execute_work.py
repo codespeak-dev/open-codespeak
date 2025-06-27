@@ -125,7 +125,7 @@ class ImplementationAgent:
 
     def implement_screen(self, screen_text: str):
         """Implement a screen by creating views and templates"""
-        print(f"{Colors.CYAN}Implementing screen{Colors.RESET}")
+        print(f"{Colors.BRIGHT_CYAN}Implementing screen{Colors.END}")
 
         # Read current models and views for context
         models_content = self.read_file("web/models.py")
@@ -174,7 +174,7 @@ class ImplementationAgent:
         # This would parse the response and apply the changes
         # For now, just log the response
         self.history.append(f"Generated implementation for screen")
-        print(f"{Colors.GREEN}Implementation generated{Colors.RESET}")
+        print(f"{Colors.BRIGHT_GREEN}Implementation generated{Colors.END}")
 
 class ExecuteWork(Transition):
     def run(self, state: State, context: Context = None) -> State:
@@ -189,9 +189,9 @@ class ExecuteWork(Transition):
         screens = [screen.strip() for screen in screens]
 
         # Print the array
-        print(f"{Colors.BLUE}Parsed screens array:{Colors.RESET}")
+        print(f"{Colors.BRIGHT_MAGENTA}Parsed screens array:{Colors.END}")
         for i, screen in enumerate(screens):
-            print(f"{Colors.GREEN}Screen {i+1}:{Colors.RESET}")
+            print(f"{Colors.BRIGHT_GREEN}Screen {i+1}:{Colors.END}")
             print(screen)
             print("-" * 40)
 
@@ -199,9 +199,9 @@ class ExecuteWork(Transition):
         agent = ImplementationAgent(project_path)
 
         # Process each screen
-        print(f"\n{Colors.YELLOW}Processing screens with implementation agent:{Colors.RESET}")
+        print(f"\n{Colors.BRIGHT_YELLOW}Processing screens with implementation agent:{Colors.END}")
         for i, screen in enumerate(screens):
-            print(f"{Colors.CYAN}Processing screen {i+1}:{Colors.RESET}")
+            print(f"{Colors.BRIGHT_CYAN}Processing screen {i+1}:{Colors.END}")
             print(f"Content: {screen[:100]}..." if len(screen) > 100 else f"Content: {screen}")
 
             # Implement the screen
