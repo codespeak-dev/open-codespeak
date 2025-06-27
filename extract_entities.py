@@ -4,7 +4,7 @@ import anthropic
 import inquirer
 from colors import Colors
 from state_machine import State, Transition
-from with_step import with_step, with_streaming_step
+from with_step import with_streaming_step
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Tuple
 
@@ -20,8 +20,23 @@ class Entity(BaseModel):
     relationships: Dict[str, Dict[str, str]] = {}
 
 
+def slice_dict(d, *keys):
+    return {k: v for k, v in d.items() if k in keys}
+
 def to_entities(raw_data):
-    return [Entity(**item) for item in raw_data]
+    # LLM might send extra fields, so we need to filter them out
+    # so far this seems more reliable that trying to prompt with with "never return anything other than the fields we ask for"
+    def filter_item(item):
+        filtered = slice_dict(item, 'name', 'fields', 'relationships')
+        if 'relationships' in filtered and isinstance(filtered['relationships'], dict):
+            filtered['relationships'] = {
+                rel_name: slice_dict(rel_info, 'type', 'related_to', 'related_name') 
+                if isinstance(rel_info, dict) else rel_info
+                for rel_name, rel_info in filtered['relationships'].items()
+            }
+        return filtered
+
+    return [Entity(**filter_item(item)) for item in raw_data]
 
 def extract_models_and_fields(prompt: str) -> List[Entity]:
     """
@@ -30,7 +45,7 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
     """
     client = anthropic.Anthropic()
     system_prompt = (
-        "You are an expert Django developer. Given a user prompt, extract a list of Django models and their fields. "
+        "You are an expert Django developer and an excellent data modeler. Given a user prompt, extract a list of Django models and their fields. "
         "Return a JSON array of objects, each with:"
         "- 'name' (model name)"
         "- 'fields' (object mapping field names to Django field types, e.g. 'CharField(max_length=100)')"
@@ -43,11 +58,11 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         "Do not include any explanation, only valid JSON."
     )
 
-    with with_streaming_step("Extracting models and fields from Claude...") as token_count:
+    with with_streaming_step("Figuring out the data model...") as token_count:
         response_text = ""
         with client.messages.stream(
             model="claude-3-7-sonnet-latest",
-            max_tokens=2048,
+            max_tokens=10000,
             temperature=0,
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}]
@@ -56,7 +71,12 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
                 response_text += text
                 token_count[0] += len(text.split())
 
-    return json.loads(response_text.strip())
+    try:
+        return json.loads(response_text.strip())
+    except json.JSONDecodeError as e:
+        print(f"{Colors.BRIGHT_RED}Error: Failed to parse JSON response from Claude: {e}{Colors.END}")
+        print(f"{Colors.BRIGHT_YELLOW}Raw response: {response_text}{Colors.END}")
+        raise
 
 def refine_entities(original_prompt: str, entities: dict, feedback: str) -> dict:
     """
@@ -91,7 +111,7 @@ Please modify the entities based on the feedback."""
         response_text = ""
         with client.messages.stream(
             model="claude-3-5-sonnet-latest",
-            max_tokens=1024,
+            max_tokens=8192,
             temperature=0,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}]
@@ -100,7 +120,12 @@ Please modify the entities based on the feedback."""
                 response_text += text
                 token_count[0] += len(text.split())
 
-    return json.loads(response_text.strip())
+    try:
+        return json.loads(response_text.strip())
+    except json.JSONDecodeError as e:
+        print(f"{Colors.BRIGHT_RED}Error: Failed to parse JSON response from Claude during refinement: {e}{Colors.END}")
+        print(f"{Colors.BRIGHT_YELLOW}Raw response: {response_text}{Colors.END}")
+        raise
 
 def display_entities(entities: List[Entity]):
     """Display entities in a formatted way"""
