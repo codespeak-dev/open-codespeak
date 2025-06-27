@@ -5,6 +5,7 @@ import json
 import os
 from typing import Any, Callable, Dict
 
+from data_serializer import decode_data, encode_data, json_file, validate_schema_entry
 
 class Context:
     def __init__(self, verbose: bool = False):
@@ -64,6 +65,20 @@ class Transition:
     def cleanup(self, state: State, context: Context = None):
         pass
 
+    def get_state_schema_entries(self) -> Dict[str, dict]:
+        return {}
+
+class Start(Transition):
+    def __init__(self, initial_state: dict, state_schema: Dict[str, dict]):
+        self.initial_state = initial_state
+        self.state_schema = state_schema
+
+    def run(self, state: State, context: Context = None) -> State:
+        return state.clone(self.initial_state)
+    
+    def get_state_schema_entries(self) -> Dict[str, dict]:
+        return self.state_schema
+
 class Done(Transition):
     def run(self, state: State, context: Context = None) -> State:
         return state.clone()
@@ -74,27 +89,31 @@ class StateMachineError(Exception):
 class PersistentStateMachine:    
     INITIAL_TRANSITION = "__initial"
     STATEMACHINE_ATTRIBUTE = "__statemachine"
-    LAST_EXECUTED_TRANSITION = "__last"
+    LAST_SUCCESSFUL_TRANSITION = "__last_successful"
     LAST_FAILED_TRANSITION = "__last_failed"
     HISTORY = "__history"
+    SCHEMA = "__schema"
 
     def __init__(
             self, 
             transitions: list[Transition], 
-            initial_state: dict, 
             state_file: Callable[[State], str | None], 
+            initial_state: dict | None = None, 
             context: Context = None,
             start_from: str = None
         ):
         self.transitions = transitions
+        self.state_schema = self.calculate_schema(transitions)
+
         self.state_file = state_file
         self.context = context or Context()
         self.start_from = start_from
         
         self.current_state = State(
-            data=initial_state,
+            data=initial_state or {},
             _internal_data={
-                self.LAST_EXECUTED_TRANSITION: self.INITIAL_TRANSITION,                 
+                self.LAST_SUCCESSFUL_TRANSITION: self.INITIAL_TRANSITION,
+                self.SCHEMA: self.state_schema
             }
         )
 
@@ -102,7 +121,24 @@ class PersistentStateMachine:
         if state_file and os.path.exists(state_file):
             print(f"Loading state from {state_file}")
             self.load_state(state_file)
-            print(f"  * Last executed transition: {self.current_state.internal.get(self.LAST_EXECUTED_TRANSITION)}")
+            print(f"  * Last executed transition: {self.current_state.internal.get(self.LAST_SUCCESSFUL_TRANSITION)}")
+
+    def calculate_schema(self, transitions: list[Transition]) -> Dict[str, dict]:
+        BY_TRANSITION = "__by_transition"
+
+        schema = {}
+        for transition in transitions:
+            for key, value in transition.get_state_schema_entries().items():
+                if key in schema:
+                    raise StateMachineError(
+                        f"Key '{key}' in state schema is contributed by {transition.__class__.__name__} and {schema[key][BY_TRANSITION]}")
+                validate_schema_entry(value)
+                schema[key] = {
+                    **value,
+                    BY_TRANSITION: transition.__class__.__name__
+                }
+
+        return schema
 
     def run_state_machine(self) -> State:
         transition_names = [transition.__class__.__name__ for transition in self.transitions]
@@ -110,7 +146,7 @@ class PersistentStateMachine:
         # print(state.data)
         for transition in self.transitions:
             current_transition = transition.__class__.__name__        
-            last_executed_transition = state.internal.get(self.LAST_EXECUTED_TRANSITION)
+            last_executed_transition = state.internal.get(self.LAST_SUCCESSFUL_TRANSITION)
 
             if self.start_from:
                 sf_index = transition_names.index(self.start_from)
@@ -143,6 +179,10 @@ class PersistentStateMachine:
                         }
                     ]
                 }
+            
+            standard_fields = {
+                self.SCHEMA: self.state_schema,
+            }
 
             try:
                 new_state = transition.run(state, self.context)
@@ -150,13 +190,15 @@ class PersistentStateMachine:
                     raise StateMachineError(f"Transition {current_transition} returned a non-State object")
                 
                 state = new_state._clone_internal({
-                    self.LAST_EXECUTED_TRANSITION: current_transition,
+                    self.LAST_SUCCESSFUL_TRANSITION: current_transition,
+                    **standard_fields,
                     **append_to_history()
                 })
             except Exception as e:
                 print(f"Error running transition {current_transition}: {e}")
                 self.save_state(state._clone_internal({
                     self.LAST_FAILED_TRANSITION: current_transition,
+                    **standard_fields,
                     **append_to_history({"error": str(e)})
                 }))
                 raise e
@@ -166,9 +208,9 @@ class PersistentStateMachine:
 
         return state
 
-    def load_state(self, state_file):                    
+    def load_state(self, state_file):
         with open(state_file, "r") as f:
-            data = json.load(f)
+            data = decode_data(json.load(f), self.state_schema, os.path.dirname(state_file))
             internal = data.pop(self.STATEMACHINE_ATTRIBUTE, {})
 
             self.current_state = State(data=data, _internal_data=internal)
@@ -177,19 +219,23 @@ class PersistentStateMachine:
         state_file = self.state_file(state)
         if state_file:
             with open(state_file, "w") as f:
-                json.dump({
+                json.dump(encode_data({
                     self.STATEMACHINE_ATTRIBUTE: state.internal,
                     **state.data
-                }, f, indent=4)
+                }, self.state_schema, os.path.dirname(state_file)), f, indent=4)
 
 
 if __name__ == "__main__":
 
     class Step1(Transition):
         def run(self, state: State, context: Context = None) -> State:
+            print(state.data)
             return state.clone({
                 "project_name": "My Project"
             })
+        
+        def get_state_schema_entries(self) -> Dict[str, dict]:
+            return {}
 
     class Step2(Transition):
         def run(self, state: State, context: Context = None) -> State:
@@ -204,17 +250,26 @@ if __name__ == "__main__":
                     }
                 ]
             })
+        
+        def get_state_schema_entries(self) -> Dict[str, dict]:
+            return {
+                "entities": json_file("entities.json")
+            }
+        
     class Fail(Transition):
         def run(self, state: State, context: Context = None) -> State:
+            print(state.data)
             # pass
-            # raise Exception("Failed")
-            return State({"done": True})
+            raise Exception("Failed")
+            return state.clone({"done": True})
 
     sm = PersistentStateMachine([
         Step1(),
         Step2(),
         Fail()
-    ], {}, lambda state: "state.json")
+    ], lambda state: "test_outputs/state.json", 
+    # start_from="Step1"
+    )
     try:
         sm.run_state_machine()
     except StateMachineError as e:
@@ -222,3 +277,4 @@ if __name__ == "__main__":
     finally:
         with open("state.json", "r") as f:
             print(f.read())
+        # os.remove("state.json")

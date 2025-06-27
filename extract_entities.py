@@ -3,6 +3,7 @@ import sys
 import anthropic
 import inquirer
 from colors import Colors
+from data_serializer import json_file
 from state_machine import State, Transition, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
@@ -207,7 +208,12 @@ class ExtractEntities(Transition):
         return state.clone({
             "entities": entities
         })
-
+    
+    def get_state_schema_entries(self) -> Dict[str, dict]:
+        return {
+            "entities": json_file("entities.json")
+        }
+    
 class RefineEntities(Transition):
     def run(self, state: State, context: Context = None) -> State:
         spec = state["spec"]

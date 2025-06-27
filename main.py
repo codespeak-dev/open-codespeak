@@ -2,6 +2,7 @@ import argparse
 import os
 import dotenv
 from colors import Colors
+from data_serializer import text_file
 from extract_entities import ExtractEntities, RefineEntities
 from extract_project_name import ExtractProjectName
 from generate_django_project import GenerateDjangoProject
@@ -12,7 +13,7 @@ from reconcile_integration_tests import ReconcileIntegrationTests
 from plan_screens import PlanScreens
 from plan_work import PlanWork
 from execute_work import ExecuteWork
-from state_machine import Done, PersistentStateMachine, Context
+from state_machine import Done, PersistentStateMachine, Context, Start
 
 dotenv.load_dotenv()
 
@@ -44,12 +45,19 @@ def main():
             spec = f.read()
 
         initial_state = {
+            "spec_file": spec_file,
             "spec": spec,
             "target_dir": args.target_dir,
         }
 
     psm = PersistentStateMachine(
         [
+            Start(
+                initial_state, 
+                {
+                    "spec": text_file("spec.md"),
+                }
+            ),
             ExtractProjectName(),        
             ExtractEntities(),
             RefineEntities(),
@@ -63,9 +71,8 @@ def main():
             ExecuteWork(),
             Done(),
         ], 
-        initial_state, 
         lambda state: os.path.join(state["project_path"], "codespeak_state.json") if "project_path" in state else None,
-        Context(verbose=args.verbose),
+        context=Context(verbose=args.verbose),
         start_from=args.start
     )
 
