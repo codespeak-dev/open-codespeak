@@ -89,13 +89,80 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) 
             dir_path = os.path.join(project_path, tool_input["directory"])
             print(f"   Listing files in: {dir_path}")
             if os.path.exists(dir_path):
-                files = os.listdir(dir_path)
-                print(f"   ✅ Found {len(files)} files in {tool_input['directory']}")
+                files = []
+                for root, dirs, filenames in os.walk(dir_path):
+                    # Get relative path from the requested directory
+                    rel_root = os.path.relpath(root, dir_path)
+                    if rel_root == ".":
+                        rel_root = ""
+
+                    # Add directories
+                    for d in dirs:
+                        if rel_root:
+                            files.append(f"{rel_root}/{d}/")
+                        else:
+                            files.append(f"{d}/")
+
+                    # Add files
+                    for f in filenames:
+                        if rel_root:
+                            files.append(f"{rel_root}/{f}")
+                        else:
+                            files.append(f)
+
+                files.sort()
+                print(f"   ✅ Found {len(files)} items in {tool_input['directory']} (recursive)")
                 return "\n".join(files)
             else:
                 error_msg = f"Directory not found: {tool_input['directory']}"
                 print(f"   ❌ {error_msg}")
                 return error_msg
+
+        elif tool_name == "makemigrations":
+            print(f"   Running Django makemigrations...")
+            try:
+                result = subprocess.run(
+                    [sys.executable, 'manage.py', 'makemigrations', 'web'],
+                    cwd=project_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                output = result.stdout + result.stderr
+                success = result.returncode == 0
+                if success:
+                    print(f"   ✅ Makemigrations completed successfully")
+                    return f"SUCCESS: Makemigrations completed successfully.\n\nOutput:\n{output}"
+                else:
+                    print(f"   ❌ Makemigrations failed with code {result.returncode}")
+                    return f"FAILED: Makemigrations failed with return code {result.returncode}.\n\nOutput:\n{output}"
+            except Exception as e:
+                error_msg = f"Error running makemigrations: {str(e)}"
+                print(f"   ❌ {error_msg}")
+                return f"ERROR: {error_msg}"
+
+        elif tool_name == "migrate":
+            print(f"   Running Django migrate...")
+            try:
+                result = subprocess.run(
+                    [sys.executable, 'manage.py', 'migrate'],
+                    cwd=project_path,
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+                output = result.stdout + result.stderr
+                success = result.returncode == 0
+                if success:
+                    print(f"   ✅ Migration completed successfully")
+                    return f"SUCCESS: Migration completed successfully.\n\nOutput:\n{output}"
+                else:
+                    print(f"   ❌ Migration failed with code {result.returncode}")
+                    return f"FAILED: Migration failed with return code {result.returncode}.\n\nOutput:\n{output}"
+            except Exception as e:
+                error_msg = f"Error running migrate: {str(e)}"
+                print(f"   ❌ {error_msg}")
+                return f"ERROR: {error_msg}"
 
         else:
             error_msg = f"Unknown tool: {tool_name}"
@@ -151,6 +218,24 @@ def fix_issues(project_path: str, test_code: str, error_output: str, message_his
                     "directory": {"type": "string", "description": "Directory path relative to project root"}
                 },
                 "required": ["directory"]
+            }
+        },
+        {
+            "name": "makemigrations",
+            "description": "Run Django makemigrations for the web app",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        },
+        {
+            "name": "migrate",
+            "description": "Run Django migrate to apply database migrations",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
             }
         }
     ]
