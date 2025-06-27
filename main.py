@@ -10,6 +10,8 @@ from migrate import Migrate
 from generate_integration_tests import GenerateIntegrationTests
 from reconcile_integration_tests import ReconcileIntegrationTests
 from plan_screens import PlanScreens
+from plan_work import PlanWork
+from execute_work import ExecuteWork
 from state_machine import Done, PersistentStateMachine, Context
 
 dotenv.load_dotenv()
@@ -57,6 +59,8 @@ def main():
             GenerateIntegrationTests(),
             ReconcileIntegrationTests(),
             PlanScreens(),
+            PlanWork(),
+            ExecuteWork(),
             Done(),
         ], 
         initial_state, 
