@@ -9,20 +9,20 @@ from typing import Any, Callable
 class State:
     def __init__(self, data: dict = None):
         self._data = data or {}
-    
+
     @property
     def data(self) -> dict:
         return deepcopy(self._data)
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
-    
+
     def clone(self, delta: dict = None) -> "State":
         return self.__class__({**deepcopy(self._data), **(delta or {})})
-    
+
     def __getitem__(self, key: str) -> Any:
         return self._data[key]
-    
+
     def __setitem__(self, key: str, value: Any) -> None:
         self._data[key] = value
 
@@ -50,7 +50,7 @@ class PersistentStateMachine:
     LAST_FAILED_TRANSITION = "__last_failed"
     FAILURE_INFO = "__failure_info"
     HISTORY = "__history"
-    
+
     def __init__(self, transitions: list[Transition], initial_state: dict, state_file: Callable[[State], str | None]):
         self.transitions = transitions
         self.state_file = state_file
@@ -74,7 +74,7 @@ class PersistentStateMachine:
             if last_executed_transition in transition_names and transition_names.index(last_executed_transition) >= transition_names.index(current_transition):
                 print(f"Transition {current_transition} has already been executed, skipping...")
                 continue
-            
+
             last_failed_transition = state.get(self.LAST_FAILED_TRANSITION)
             if last_failed_transition == current_transition and last_failed_transition != last_executed_transition:
                 print(f"Transition {current_transition} failed last time, cleaning up...")
@@ -117,7 +117,7 @@ class PersistentStateMachine:
                 json.dump(state.data, f, indent=4)
 
 if __name__ == "__main__":
-    
+
     class Step1(Transition):
         def run(self, state: State) -> State:
             return state.clone({

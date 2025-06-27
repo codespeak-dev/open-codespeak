@@ -38,7 +38,7 @@ def run_integration_tests(test_code: str, project_path: str) -> Tuple[bool, str]
         success = result.returncode == 0
 
         return success, output
-        
+
     except subprocess.TimeoutExpired:
         return False, "Test execution timed out after 60 seconds"
     except Exception as e:
@@ -48,11 +48,11 @@ def run_integration_tests(test_code: str, project_path: str) -> Tuple[bool, str]
 def analyze_test_failure(test_code: str, error_output: str, message_history: List = None) -> Dict[str, Any]:
     """Use Claude to analyze test failure and determine if it's logical or testing issue"""
     client = anthropic.Anthropic()
-    
+
     # Build messages from history
     messages = message_history.copy() if message_history else []
     messages.append({"role": "user", "content": f"Test code:\n{test_code}\n\nError output:\n{error_output}"})
-    
+
     tools = [{
         "name": "analyze_failure",
         "description": "Analyze test failure and provide categorization",
@@ -76,7 +76,7 @@ def analyze_test_failure(test_code: str, error_output: str, message_history: Lis
             "required": ["error_type", "explanation", "suggested_fix"]
         }
     }]
-    
+
     response = client.messages.create(
         model="claude-3-5-sonnet-latest",
         max_tokens=8192,
@@ -86,14 +86,14 @@ def analyze_test_failure(test_code: str, error_output: str, message_history: Lis
         tools=tools,
         tool_choice={"type": "tool", "name": "analyze_failure"}
     )
-    
+
     return response.content[0].input
 
 
 def fix_test_code(test_code: str, error_output: str, analysis: Dict[str, Any], message_history: List = None) -> str:
     """Use Claude to fix the test code based on error analysis"""
     client = anthropic.Anthropic()
-    
+
     user_message = f"""Test code:
 {test_code}
 
@@ -104,11 +104,11 @@ Analysis:
 {json.dumps(analysis, indent=2)}
 
 Please fix the test code based on this information."""
-    
+
     # Build messages from history
     messages = message_history.copy() if message_history else []
     messages.append({"role": "user", "content": user_message})
-    
+
     response = client.messages.create(
         model="claude-3-5-sonnet-latest",
         max_tokens=2048,
@@ -116,7 +116,7 @@ Please fix the test code based on this information."""
         system=FIX_TEST_SYSTEM_PROMPT,
         messages=messages
     )
-    
+
     return response.content[0].text.strip()
 
 
@@ -130,14 +130,14 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) 
                     return f.read()
             else:
                 return f"File not found: {tool_input['file_path']}"
-                
+
         elif tool_name == "write_file":
             file_path = os.path.join(project_path, tool_input["file_path"])
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, 'w') as f:
                 f.write(tool_input["content"])
             return f"Successfully wrote to {tool_input['file_path']}"
-            
+
         elif tool_name == "list_files":
             dir_path = os.path.join(project_path, tool_input["directory"])
             if os.path.exists(dir_path):
@@ -145,10 +145,10 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) 
                 return "\n".join(files)
             else:
                 return f"Directory not found: {tool_input['directory']}"
-                
+
         else:
             return f"Unknown tool: {tool_name}"
-            
+
     except Exception as e:
         return f"Tool execution error: {str(e)}"
 
@@ -156,7 +156,7 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) 
 def fix_logical_error(project_path: str, test_code: str, error_output: str, analysis: Dict[str, Any], message_history: List = None) -> Tuple[bool, str]:
     """Use Claude with tools to fix logical errors in the Django project"""
     client = anthropic.Anthropic()
-    
+
     tools = [
         {
             "name": "read_file",
@@ -193,7 +193,7 @@ def fix_logical_error(project_path: str, test_code: str, error_output: str, anal
             }
         }
     ]
-    
+
     # Build messages from history
     messages = message_history.copy() if message_history else []
     messages.append({
@@ -213,7 +213,7 @@ Project path: {project_path}
 
 Please use the tools to analyze the project structure, identify the logical error, and fix it. Start by exploring the project structure and reading the key files."""
     })
-    
+
     max_iterations = 10
     for iteration in range(max_iterations):
         try:
@@ -225,14 +225,14 @@ Please use the tools to analyze the project structure, identify the logical erro
                 messages=messages,
                 tools=tools
             )
-            
+
             # Add assistant's response to conversation
             messages.append({"role": "assistant", "content": response.content})
-            
+
             # Process tool calls
             if response.content and any(block.type == 'tool_use' for block in response.content):
                 tool_results = []
-                
+
                 for block in response.content:
                     if block.type == 'tool_use':
                         tool_result = execute_tool(block.name, block.input, project_path)
@@ -240,18 +240,18 @@ Please use the tools to analyze the project structure, identify the logical erro
                             "tool_use_id": block.id,
                             "content": tool_result
                         })
-                
+
                 # Add tool results to conversation
                 messages.append({"role": "user", "content": tool_results})
-                
+
             else:
                 # No more tools needed, agent is done
                 final_message = "".join([block.text for block in response.content if block.type == 'text'])
                 return True, final_message
-                
+
         except Exception as e:
             return False, f"Error during logical error fixing: {str(e)}"
-    
+
     return False, "Maximum iterations reached while trying to fix logical error"
 
 
@@ -259,10 +259,10 @@ class ReconcileIntegrationTests(Transition):
     def run(self, state: State) -> State:
         project_path = state["project_path"]
         test_code = state["integration_test_code"]
-        
+
         # Initialize message history for the agent conversation
         message_history = []
-        
+
         # Add initial context to message history
         message_history.append({
             "role": "user", 
@@ -272,25 +272,25 @@ class ReconcileIntegrationTests(Transition):
             "role": "assistant", 
             "content": f"I've generated integration test code to verify the Django application."
         })
-        
+
         max_retries = 8
         attempt = 0
-        
+
         with with_step("Running integration tests and fixing issues..."):
             while attempt < max_retries:
                 attempt += 1
                 print(f"\n{Colors.BRIGHT_CYAN}Running integration tests (attempt {attempt}/{max_retries})...{Colors.END}")
-                
+
                 success, output = run_integration_tests(test_code, project_path)
                 print(f"Test execution result: {'SUCCESS' if success else 'FAILED'}")
                 print(f"Test output:\n{output[:300]}{'...' if len(output) > 300 else ''}")
-                
+
                 # Add test result to message history
                 message_history.append({
                     "role": "user",
                     "content": f"Test attempt {attempt} result: {'SUCCESS' if success else 'FAILED'}\nOutput summary: {output[:200]}..."
                 })
-                
+
                 if success:
                     print(f"{Colors.BRIGHT_GREEN}All tests passed! Verification complete.{Colors.END}")
                     message_history.append({
@@ -309,7 +309,7 @@ class ReconcileIntegrationTests(Transition):
                         print(f"Error type: {analysis['error_type']}")
                         print(f"Explanation: {analysis['explanation']}")
                         print(f"Suggested fix: {analysis['suggested_fix']}")
-                        
+
                         # Add analysis to message history
                         message_history.append({
                             "role": "assistant",
@@ -320,13 +320,13 @@ class ReconcileIntegrationTests(Transition):
                             print(f"\n{Colors.BRIGHT_YELLOW}Fixing test code...{Colors.END}")
                             old_test_code = test_code
                             test_code = fix_test_code(test_code, output, analysis, message_history)
-                            
+
                             # Add fix to message history
                             message_history.append({
                                 "role": "assistant",
                                 "content": f"I've updated the test code to fix the testing error."
                             })
-                            
+
                             print(f"Test code updated ({len(test_code)} chars)")
                             if test_code == old_test_code:
                                 print(f"{Colors.BRIGHT_YELLOW}Warning: Test code unchanged, trying different approach{Colors.END}")
@@ -334,28 +334,28 @@ class ReconcileIntegrationTests(Transition):
                                     "role": "user",
                                     "content": "The test code wasn't changed. Please try a different approach to fix the testing error."
                                 })
-                                
+
                         else:
                             print(f"{Colors.BRIGHT_YELLOW}Logical error detected - using agent to fix application code...{Colors.END}")
-                            
+
                             # Add logical error context to message history
                             message_history.append({
                                 "role": "user",
                                 "content": f"Logical error detected in attempt {attempt}. Need to fix the application code."
                             })
-                            
+
                             fix_success, fix_message = fix_logical_error(project_path, test_code, output, analysis, message_history)
-                            
+
                             if fix_success:
                                 print(f"{Colors.BRIGHT_GREEN}Agent successfully fixed logical error{Colors.END}")
                                 print(f"Fix details: {fix_message[:200]}...")
-                                
+
                                 # Add successful fix to message history
                                 message_history.append({
                                     "role": "assistant",
                                     "content": f"Successfully fixed logical error: {fix_message}"
                                 })
-                                
+
                                 # Continue the loop to retest with the fixed code
                             else:
                                 print(f"{Colors.BRIGHT_RED}Agent failed to fix logical error: {fix_message}{Colors.END}")
@@ -371,7 +371,7 @@ class ReconcileIntegrationTests(Transition):
                             "content": "Reached maximum retry limit. Unable to resolve all issues automatically."
                         })
                         raise Exception("Maximum retries exceeded - unable to resolve all issues")
-        
+
         return state.clone({
             "tests_passed": success,
             "final_test_code": test_code,

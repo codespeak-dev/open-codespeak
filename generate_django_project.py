@@ -56,7 +56,7 @@ class GenerateDjangoProject(Transition):
         print(f"Generating Django project in {target_dir} with name {project_name}")
         generate_django_project_from_template(target_dir, project_name, entities, "web")
         return state.clone()
-    
+
     def cleanup(self, state: State):
         target_dir = state["target_dir"]
         project_name = state["project_name"]

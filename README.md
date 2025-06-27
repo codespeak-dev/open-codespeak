@@ -28,3 +28,9 @@ cp env.template .env
 ```
 
 2. Provide actual values for API keys in `.env`
+
+3. Run the setup script to install git hooks:
+
+```bash
+./setup-hooks.sh
+```

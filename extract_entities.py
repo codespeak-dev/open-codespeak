@@ -63,10 +63,10 @@ def refine_entities(original_prompt: str, entities: dict, feedback: str) -> dict
     Use Claude to refine entities based on user feedback.
     """
     client = anthropic.Anthropic()
-    
+
     # Convert entities to JSON for the prompt
     entities_json = json.dumps(entities, indent=2)
-    
+
     system_prompt = (
         "You are an expert Django developer. Given the original user prompt, current entities, and user feedback, "
         "modify the entities accordingly. Return a JSON array of objects with the same structure: "
@@ -75,7 +75,7 @@ def refine_entities(original_prompt: str, entities: dict, feedback: str) -> dict
         "- 'relationships' (object mapping field names to relationship info with 'type' and 'related_to' keys)"
         "Only return the JSON array, no explanation."
     )
-    
+
     user_message = f"""Original prompt:
 {original_prompt}
 
@@ -86,7 +86,7 @@ User feedback:
 {feedback}
 
 Please modify the entities based on the feedback."""
-    
+
     with with_streaming_step("Refining entities based on feedback...") as token_count:
         response_text = ""
         with client.messages.stream(
@@ -99,7 +99,7 @@ Please modify the entities based on the feedback."""
             for text in stream.text_stream:
                 response_text += text
                 token_count[0] += len(text.split())
-    
+
     return json.loads(response_text.strip())
 
 def display_entities(entities: List[Entity]):
@@ -118,11 +118,11 @@ def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tupl
     Returns (should_proceed, final_entities)
     """
     current_entities = entities
-    
+
     while True:
         display_entities(to_entities(current_entities))
         print(f"\n{Colors.BOLD}Please review the extracted entities:{Colors.END}")
-        
+
         questions = [
             inquirer.List(
                 'action',
@@ -134,15 +134,15 @@ def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tupl
                 carousel=True
             )
         ]
-        
+
         try:
             answers = inquirer.prompt(questions)
             if not answers:  # User pressed Ctrl+C
                 print(f"\n{Colors.BRIGHT_YELLOW}Cancelled by user{Colors.END}")
                 sys.exit(0)
-            
+
             action = answers['action']
-            
+
             if action == 'proceed':
                 return True, current_entities
             elif action == 'modify':
@@ -153,16 +153,16 @@ def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tupl
                         validate=lambda _, x: len(x.strip()) > 0 or "Please provide feedback"
                     )
                 ]
-                
+
                 feedback_answers = inquirer.prompt(feedback_question)
                 if not feedback_answers:
                     continue
-                
+
                 feedback = feedback_answers['feedback']
                 print(f"\n{Colors.BRIGHT_CYAN}Refining entities...{Colors.END}")
                 current_entities = refine_entities(original_prompt, current_entities, feedback)
                 print(f"{Colors.BRIGHT_GREEN}Entities updated{Colors.END}\n")
-                
+
         except KeyboardInterrupt:
             print(f"\n{Colors.BRIGHT_YELLOW}Cancelled by user{Colors.END}")
             sys.exit(0)
@@ -172,11 +172,11 @@ class ExtractEntities(Transition):
         spec = state["spec"]
 
         entities = extract_models_and_fields(spec)
-        
+
         return state.clone({
             "entities": entities
         })
-    
+
 class RefineEntities(Transition):
     def run(self, state: State) -> State:
         spec = state["spec"]

@@ -14,5 +14,5 @@ class Migrate(Transition):
         with with_step("Running migrate..."):
             migrate()
         print("migrate complete.")
-        
+
         return state.clone()
