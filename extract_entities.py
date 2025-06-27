@@ -4,7 +4,7 @@ import anthropic
 import inquirer
 from colors import Colors
 from state_machine import State, Transition
-from with_step import with_step
+from with_step import with_step, with_streaming_step
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Tuple
 
@@ -42,14 +42,21 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         "Example: {\"name\": \"Post\", \"fields\": {\"title\": \"CharField(max_length=100)\"}, \"relationships\": {\"author\": {\"type\": \"ForeignKey\", \"related_to\": \"User\", \"related_name\": \"posts\"}}}"
         "Do not include any explanation, only valid JSON."
     )
-    response = client.messages.create(
-        model="claude-3-7-sonnet-latest",
-        max_tokens=2048,
-        temperature=0,
-        system=system_prompt,
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return json.loads(response.content[0].text.strip())
+
+    with with_streaming_step("Extracting models and fields from Claude...") as token_count:
+        response_text = ""
+        with client.messages.stream(
+            model="claude-3-7-sonnet-latest",
+            max_tokens=2048,
+            temperature=0,
+            system=system_prompt,
+            messages=[{"role": "user", "content": prompt}]
+        ) as stream:
+            for text in stream.text_stream:
+                response_text += text
+                token_count[0] += len(text.split())
+
+    return json.loads(response_text.strip())
 
 def refine_entities(original_prompt: str, entities: dict, feedback: str) -> dict:
     """
@@ -80,15 +87,20 @@ User feedback:
 
 Please modify the entities based on the feedback."""
     
-    response = client.messages.create(
-        model="claude-3-5-sonnet-latest",
-        max_tokens=1024,
-        temperature=0,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
-    )
+    with with_streaming_step("Refining entities based on feedback...") as token_count:
+        response_text = ""
+        with client.messages.stream(
+            model="claude-3-5-sonnet-latest",
+            max_tokens=1024,
+            temperature=0,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}]
+        ) as stream:
+            for text in stream.text_stream:
+                response_text += text
+                token_count[0] += len(text.split())
     
-    return json.loads(response.content[0].text.strip())
+    return json.loads(response_text.strip())
 
 def display_entities(entities: List[Entity]):
     """Display entities in a formatted way"""
@@ -159,8 +171,7 @@ class ExtractEntities(Transition):
     def run(self, state: State) -> State:
         spec = state["spec"]
 
-        with with_step("Extracting models and fields from Claude..."):
-            entities = extract_models_and_fields(spec)
+        entities = extract_models_and_fields(spec)
         
         return state.clone({
             "entities": entities

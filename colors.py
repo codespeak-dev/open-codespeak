@@ -5,5 +5,7 @@ class Colors:
     BRIGHT_YELLOW = '\033[93m'
     BRIGHT_MAGENTA = '\033[95m'
     BOLD = '\033[1m'
+    DIM = '\033[2m'
+    GREY = '\033[37m'
     END = '\033[0m'
 
