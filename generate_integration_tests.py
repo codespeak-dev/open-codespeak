@@ -6,7 +6,7 @@ import json
 from typing import Dict, Any, Optional
 from colors import Colors
 from state_machine import State, Transition
-from with_step import with_step
+from with_step import with_step, with_streaming_step
 
 
 INTEGRATION_TEST_SYSTEM_PROMPT = """You are an expert Django developer. Given Django views.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
@@ -30,7 +30,7 @@ def read_views_file(project_path: str) -> str:
     views_path = os.path.join(project_path, "web", "views.py")
     if not os.path.exists(views_path):
         raise FileNotFoundError(f"views.py not found at {views_path}")
-    
+
     with open(views_path, 'r') as f:
         return f.read()
 
@@ -38,42 +38,46 @@ def read_views_file(project_path: str) -> str:
 def generate_integration_tests(views_content: str) -> str:
     """Use Claude to generate integration tests based on views.py"""
     client = anthropic.Anthropic()
-    
-    response = client.messages.create(
-        model="claude-3-5-sonnet-latest",
-        max_tokens=8192,
-        temperature=0,
-        system=INTEGRATION_TEST_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": views_content}]
-    )
-    
-    return response.content[0].text.strip()
+
+    with with_streaming_step("Generating integration tests with Claude...") as token_count:
+        response_text = ""
+        with client.messages.stream(
+            model="claude-3-5-sonnet-latest",
+            max_tokens=8192,
+            temperature=0,
+            system=INTEGRATION_TEST_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": views_content}]
+        ) as stream:
+            for text in stream.text_stream:
+                response_text += text
+                token_count[0] += len(text.split())
+
+    return response_text.strip()
 
 
 def save_test_to_project(test_code: str, project_path: str) -> str:
     """Save the generated test code to the Django project's test directory"""
     test_file_path = os.path.join(project_path, "web", "test_integration.py")
-    
+
     with open(test_file_path, 'w') as f:
         f.write(test_code)
-    
+
     return test_file_path
 
 
 class GenerateIntegrationTests(Transition):
     def run(self, state: State) -> State:
         project_path = state["project_path"]
-        
+
         with with_step("Reading views.py file..."):
             views_content = read_views_file(project_path)
-        
-        with with_step("Generating integration tests with Claude..."):
-            test_code = generate_integration_tests(views_content)
-        
+
+        test_code = generate_integration_tests(views_content)
+
         with with_step("Saving integration tests to project..."):
             test_file_path = save_test_to_project(test_code, project_path)
             print(f"Saved test to: {Colors.BRIGHT_CYAN}{test_file_path}{Colors.END}")
-        
+
         return state.clone({
             "integration_test_code": test_code,
             "integration_test_path": test_file_path
