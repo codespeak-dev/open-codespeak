@@ -6,7 +6,7 @@ class {{ entity.name }}(models.Model):
     {{ field_name }} = models.{{ field_type }}
 {% endfor %}
 {% for rel_field, rel_info in entity.relationships.items() %}{% if rel_info.type == 'ForeignKey' %}
-    {{ rel_field }} = models.ForeignKey('{{ rel_info.related_to }}', on_delete=models.CASCADE)
+    {{ rel_field }} = models.ForeignKey('{{ rel_info.related_to }}', on_delete=models.CASCADE, related_name='{{ rel_info.related_name }}')
 {% elif rel_info.type == 'ManyToManyField' %}
     {{ rel_field }} = models.ManyToManyField('{{ rel_info.related_to }}')
 {% elif rel_info.type == 'OneToOneField' %}

@@ -34,17 +34,17 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         "Return a JSON array of objects, each with:"
         "- 'name' (model name)"
         "- 'fields' (object mapping field names to Django field types, e.g. 'CharField(max_length=100)')"
-        "- 'relationships' (object mapping field names to relationship info with 'type' and 'related_to' keys)"
+        "- 'relationships' (object mapping field names to relationship info with 'type', 'related_to', 'related_name' keys)"
         "For relationships, use types like 'ForeignKey', 'ManyToManyField', 'OneToOneField'."
         "IMPORTANT: If there's an intermediate model that connects two other models (like Appointment with Patient and Doctor, or like LineItem with Order and Product), "
         "do NOT create direct ManyToManyField relationships between the connected models. "
         "The intermediate model's ForeignKey relationships are sufficient to represent the many-to-many connection."
-        "Example: {\"name\": \"Post\", \"fields\": {\"title\": \"CharField(max_length=100)\"}, \"relationships\": {\"author\": {\"type\": \"ForeignKey\", \"related_to\": \"User\"}}}"
+        "Example: {\"name\": \"Post\", \"fields\": {\"title\": \"CharField(max_length=100)\"}, \"relationships\": {\"author\": {\"type\": \"ForeignKey\", \"related_to\": \"User\", \"related_name\": \"posts\"}}}"
         "Do not include any explanation, only valid JSON."
     )
     response = client.messages.create(
         model="claude-3-5-sonnet-latest",
-        max_tokens=1024,
+        max_tokens=2048,
         temperature=0,
         system=system_prompt,
         messages=[{"role": "user", "content": prompt}]
