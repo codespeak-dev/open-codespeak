@@ -9,16 +9,16 @@ from state_machine import State, Transition
 from with_step import with_step
 
 
-ANALYSIS_SYSTEM_PROMPT = """You are an expert Python developer. Given integration test code and its error output, analyze whether the failure is due to a logical error (issue with the application logic/API itself) or a testing error (issue with the test code, wrong assumptions, bad test logic, etc.). Consider the conversation history to provide better analysis."""
+FIX_ISSUES_SYSTEM_PROMPT = """You are an expert Django developer with access to tools to analyze and fix code. Given a Django project with failing integration tests, use the available tools to:
 
-FIX_TEST_SYSTEM_PROMPT = """You are an expert Python developer. Given integration test code, error output, and analysis, fix the test code to resolve the testing issues. Consider the conversation history to avoid repeating the same mistakes. Only return the corrected Python code, no explanation."""
+1. Read and analyze the test code and error output
+2. Determine whether the issue is with the test code itself or the application logic
+3. Make the necessary code changes to resolve the issue - this could be:
+   - Fixing the test code if it has incorrect assumptions or logic
+   - Fixing the Django application code (models.py, views.py, etc.) if there are logical errors
+   - Updating both if needed
 
-FIX_LOGICAL_ERROR_SYSTEM_PROMPT = """You are an expert Django developer with access to tools to analyze and fix code. Given a Django project with logical errors revealed by integration tests, use the available tools to:
-1. Read and analyze the project files (models.py, views.py, etc.)
-2. Identify the root cause of the logical error
-3. Make the necessary code changes to fix the issue
-4. Ensure the fix is comprehensive and follows Django best practices
-Use the tools methodically to understand the codebase before making changes."""
+Use the tools methodically to understand the codebase and make comprehensive fixes that follow Django best practices. Consider the conversation history to avoid repeating the same mistakes."""
 
 
 def run_integration_tests(test_code: str, project_path: str) -> Tuple[bool, str]:
@@ -45,83 +45,8 @@ def run_integration_tests(test_code: str, project_path: str) -> Tuple[bool, str]
         return False, f"Exception during test execution: {str(e)}"
 
 
-def analyze_test_failure(test_code: str, error_output: str, message_history: List = None) -> Dict[str, Any]:
-    """Use Claude to analyze test failure and determine if it's logical or testing issue"""
-    client = anthropic.Anthropic()
-
-    # Build messages from history
-    messages = message_history.copy() if message_history else []
-    messages.append({"role": "user", "content": f"Test code:\n{test_code}\n\nError output:\n{error_output}"})
-
-    tools = [{
-        "name": "analyze_failure",
-        "description": "Analyze test failure and provide categorization",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "error_type": {
-                    "type": "string",
-                    "enum": ["logical_error", "testing_error"],
-                    "description": "Whether the failure is due to application logic or test code issues"
-                },
-                "explanation": {
-                    "type": "string",
-                    "description": "Brief explanation of the issue"
-                },
-                "suggested_fix": {
-                    "type": "string",
-                    "description": "What should be done to fix it"
-                }
-            },
-            "required": ["error_type", "explanation", "suggested_fix"]
-        }
-    }]
-
-    response = client.messages.create(
-        model="claude-3-5-sonnet-latest",
-        max_tokens=8192,
-        temperature=0,
-        system=ANALYSIS_SYSTEM_PROMPT,
-        messages=messages,
-        tools=tools,
-        tool_choice={"type": "tool", "name": "analyze_failure"}
-    )
-
-    return response.content[0].input
-
-
-def fix_test_code(test_code: str, error_output: str, analysis: Dict[str, Any], message_history: List = None) -> str:
-    """Use Claude to fix the test code based on error analysis"""
-    client = anthropic.Anthropic()
-
-    user_message = f"""Test code:
-{test_code}
-
-Error output:
-{error_output}
-
-Analysis:
-{json.dumps(analysis, indent=2)}
-
-Please fix the test code based on this information."""
-
-    # Build messages from history
-    messages = message_history.copy() if message_history else []
-    messages.append({"role": "user", "content": user_message})
-
-    response = client.messages.create(
-        model="claude-3-5-sonnet-latest",
-        max_tokens=2048,
-        temperature=0,
-        system=FIX_TEST_SYSTEM_PROMPT,
-        messages=messages
-    )
-
-    return response.content[0].text.strip()
-
-
 def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) -> str:
-    """Execute a tool call for the logical error fixing agent"""
+    """Execute a tool call for the issue fixing agent"""
     try:
         if tool_name == "read_file":
             file_path = os.path.join(project_path, tool_input["file_path"])
@@ -153,8 +78,8 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) 
         return f"Tool execution error: {str(e)}"
 
 
-def fix_logical_error(project_path: str, test_code: str, error_output: str, analysis: Dict[str, Any], message_history: List = None) -> Tuple[bool, str]:
-    """Use Claude with tools to fix logical errors in the Django project"""
+def fix_issues(project_path: str, test_code: str, error_output: str, message_history: List = None) -> Tuple[bool, str, str]:
+    """Use Claude with tools to fix issues revealed by integration tests"""
     client = anthropic.Anthropic()
 
     tools = [
@@ -198,30 +123,29 @@ def fix_logical_error(project_path: str, test_code: str, error_output: str, anal
     messages = message_history.copy() if message_history else []
     messages.append({
         "role": "user", 
-        "content": f"""I have a Django project with a logical error. Here's the context:
+        "content": f"""I have a Django project with failing integration tests. Here's the context:
 
-Test code that revealed the error:
+Test code:
 {test_code}
 
 Error output:
 {error_output}
 
-Analysis:
-{json.dumps(analysis, indent=2)}
-
 Project path: {project_path}
 
-Please use the tools to analyze the project structure, identify the logical error, and fix it. Start by exploring the project structure and reading the key files."""
+Please use the tools to analyze the project structure, identify what's causing the test failure, and fix it. This could involve fixing the test code if it has issues, or fixing the Django application code if there are logical errors. Start by exploring the project structure and reading the key files."""
     })
 
     max_iterations = 10
+    updated_test_code = test_code
+
     for iteration in range(max_iterations):
         try:
             response = client.messages.create(
-                model="claude-3-5-sonnet-latest",
+                model="claude-3-5-sonnet-20241022",
                 max_tokens=8192,
                 temperature=0,
-                system=FIX_LOGICAL_ERROR_SYSTEM_PROMPT,
+                system=FIX_ISSUES_SYSTEM_PROMPT,
                 messages=messages,
                 tools=tools
             )
@@ -237,9 +161,14 @@ Please use the tools to analyze the project structure, identify the logical erro
                     if block.type == 'tool_use':
                         tool_result = execute_tool(block.name, block.input, project_path)
                         tool_results.append({
+                            "type": "tool_result",
                             "tool_use_id": block.id,
                             "content": tool_result
                         })
+
+                        # Check if test code was updated
+                        if block.name == "write_file" and block.input.get("file_path") == "web/test_integration.py":
+                            updated_test_code = block.input.get("content", test_code)
 
                 # Add tool results to conversation
                 messages.append({"role": "user", "content": tool_results})
@@ -247,12 +176,12 @@ Please use the tools to analyze the project structure, identify the logical erro
             else:
                 # No more tools needed, agent is done
                 final_message = "".join([block.text for block in response.content if block.type == 'text'])
-                return True, final_message
+                return True, final_message, updated_test_code
 
         except Exception as e:
-            return False, f"Error during logical error fixing: {str(e)}"
+            return False, f"Error during issue fixing: {str(e)}", updated_test_code
 
-    return False, "Maximum iterations reached while trying to fix logical error"
+    return False, "Maximum iterations reached while trying to fix issues", updated_test_code
 
 
 class ReconcileIntegrationTests(Transition):
@@ -270,7 +199,7 @@ class ReconcileIntegrationTests(Transition):
         })
         message_history.append({
             "role": "assistant", 
-            "content": f"I've generated integration test code to verify the Django application."
+            "content": f"I'll run the integration tests and fix any issues that arise."
         })
 
         max_retries = 8
@@ -283,12 +212,18 @@ class ReconcileIntegrationTests(Transition):
 
                 success, output = run_integration_tests(test_code, project_path)
                 print(f"Test execution result: {'SUCCESS' if success else 'FAILED'}")
-                print(f"Test output:\n{output[:300]}{'...' if len(output) > 300 else ''}")
+
+                if success:
+                    print(f"Test output:\n{output[:300]}{'...' if len(output) > 300 else ''}")
+                else:
+                    print(f"{Colors.BRIGHT_RED}Full test failure output:{Colors.END}")
+                    print(output)
+                    print(f"{Colors.BRIGHT_RED}--- End of test failure output ---{Colors.END}")
 
                 # Add test result to message history
                 message_history.append({
                     "role": "user",
-                    "content": f"Test attempt {attempt} result: {'SUCCESS' if success else 'FAILED'}\nOutput summary: {output[:200]}..."
+                    "content": f"Test attempt {attempt} result: {'SUCCESS' if success else 'FAILED'}\nOutput: {output[:500]}..."
                 })
 
                 if success:
@@ -302,78 +237,37 @@ class ReconcileIntegrationTests(Transition):
                     print(f"{Colors.BRIGHT_RED}Tests failed on attempt {attempt}{Colors.END}")
 
                     if attempt < max_retries:
-                        # Agent analysis with message history
-                        print(f"\n{Colors.BRIGHT_YELLOW}Agent analyzing failure...{Colors.END}")
-                        analysis = analyze_test_failure(test_code, output, message_history)
+                        print(f"\n{Colors.BRIGHT_YELLOW}AI agent analyzing and fixing issues...{Colors.END}")
 
-                        print(f"Error type: {analysis['error_type']}")
-                        print(f"Explanation: {analysis['explanation']}")
-                        print(f"Suggested fix: {analysis['suggested_fix']}")
+                        fix_success, fix_message, updated_test_code = fix_issues(project_path, test_code, output, message_history)
 
-                        # Add analysis to message history
-                        message_history.append({
-                            "role": "assistant",
-                            "content": f"Analysis: {analysis['error_type']} - {analysis['explanation']}. Suggested fix: {analysis['suggested_fix']}"
-                        })
+                        if fix_success:
+                            print(f"{Colors.BRIGHT_GREEN}AI agent successfully applied fixes{Colors.END}")
+                            print(f"Fix details: {fix_message[:200]}...")
 
-                        if analysis['error_type'] == 'testing_error':
-                            print(f"\n{Colors.BRIGHT_YELLOW}Fixing test code...{Colors.END}")
-                            old_test_code = test_code
-                            test_code = fix_test_code(test_code, output, analysis, message_history)
+                            # Update test code if it was modified
+                            test_code = updated_test_code
 
-                            # Add fix to message history
+                            # Add successful fix to message history
                             message_history.append({
                                 "role": "assistant",
-                                "content": f"I've updated the test code to fix the testing error."
+                                "content": f"Successfully applied fixes: {fix_message}"
                             })
 
-                            print(f"Test code updated ({len(test_code)} chars)")
-                            if test_code == old_test_code:
-                                print(f"{Colors.BRIGHT_YELLOW}Warning: Test code unchanged, trying different approach{Colors.END}")
-                                message_history.append({
-                                    "role": "user",
-                                    "content": "The test code wasn't changed. Please try a different approach to fix the testing error."
-                                })
-
+                            # Continue the loop to retest with the fixes
                         else:
-                            print(f"{Colors.BRIGHT_YELLOW}Logical error detected - using agent to fix application code...{Colors.END}")
-
-                            # Add logical error context to message history
+                            print(f"{Colors.BRIGHT_RED}AI agent failed to fix issues: {fix_message}{Colors.END}")
                             message_history.append({
-                                "role": "user",
-                                "content": f"Logical error detected in attempt {attempt}. Need to fix the application code."
+                                "role": "assistant",
+                                "content": f"Failed to fix issues: {fix_message}"
                             })
-
-                            fix_success, fix_message = fix_logical_error(project_path, test_code, output, analysis, message_history)
-
-                            if fix_success:
-                                print(f"{Colors.BRIGHT_GREEN}Agent successfully fixed logical error{Colors.END}")
-                                print(f"Fix details: {fix_message[:200]}...")
-
-                                # Add successful fix to message history
-                                message_history.append({
-                                    "role": "assistant",
-                                    "content": f"Successfully fixed logical error: {fix_message}"
-                                })
-
-                                # Continue the loop to retest with the fixed code
-                            else:
-                                print(f"{Colors.BRIGHT_RED}Agent failed to fix logical error: {fix_message}{Colors.END}")
-                                message_history.append({
-                                    "role": "assistant",
-                                    "content": f"Failed to fix logical error: {fix_message}"
-                                })
-                                raise Exception(f"Failed to fix logical error: {fix_message}")
+                            raise Exception(f"Failed to fix issues: {fix_message}")
                     else:
-                        print(f"{Colors.BRIGHT_RED}Maximum retries exceeded - agent unable to resolve all issues{Colors.END}")
+                        print(f"{Colors.BRIGHT_RED}Maximum retries exceeded - unable to resolve all issues{Colors.END}")
                         message_history.append({
                             "role": "assistant",
                             "content": "Reached maximum retry limit. Unable to resolve all issues automatically."
                         })
                         raise Exception("Maximum retries exceeded - unable to resolve all issues")
 
-        return state.clone({
-            "tests_passed": success,
-            "final_test_code": test_code,
-            "test_attempts": attempt
-        })
+        return state.clone()
