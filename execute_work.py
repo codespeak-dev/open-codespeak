@@ -2,7 +2,7 @@ import anthropic
 import os
 import re
 from colors import Colors
-from state_machine import State, Phase, Context
+from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 
 IMPLEMENTATION_SYSTEM_PROMPT = """

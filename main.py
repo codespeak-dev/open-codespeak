@@ -12,7 +12,7 @@ from reconcile_integration_tests import ReconcileIntegrationTests
 from plan_screens import PlanScreens
 from plan_work import PlanWork
 from execute_work import ExecuteWork
-from state_machine import Done, PersistentStateMachine, Context, Start
+from phase_manager import Done, PhaseManager, Context, Start
 
 dotenv.load_dotenv()
 
@@ -51,7 +51,7 @@ def main():
             "project_name": os.path.basename(project_path),            
         }
 
-    psm = PersistentStateMachine(
+    pm = PhaseManager(
         [
             # TODO: go away from detecting project name and make basic config deterministic
             Start(
@@ -78,7 +78,7 @@ def main():
         start_from=args.start
     )
 
-    state = psm.run_state_machine()
+    state = pm.run_state_machine()
 
     project_name = state["project_name"]
     project_path = state["project_path"]

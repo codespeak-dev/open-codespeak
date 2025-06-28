@@ -5,7 +5,7 @@ import secrets
 from jinja2 import Environment, FileSystemLoader
 
 from extract_entities import Entity
-from state_machine import State, Phase, Context
+from phase_manager import State, Phase, Context
 
 
 def generate_django_project_from_template(project_path: str, project_name: str, entities: List[Entity], app_name: str = "web"):

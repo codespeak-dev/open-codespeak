@@ -5,7 +5,7 @@ import anthropic
 import json
 from typing import Dict, Any, Optional, List, Tuple
 from colors import Colors
-from state_machine import State, Phase, Context
+from phase_manager import State, Phase, Context
 from with_step import with_step
 
 

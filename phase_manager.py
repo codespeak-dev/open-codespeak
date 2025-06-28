@@ -86,7 +86,7 @@ class Done(Phase):
 class StateMachineError(Exception):
     pass
 
-class PersistentStateMachine:    
+class PhaseManager:    
     INITIAL_TRANSITION = "__initial"
     STATEMACHINE_ATTRIBUTE = "__statemachine"
     LAST_SUCCESSFUL_PHASE = "__last_successful"
@@ -262,7 +262,7 @@ if __name__ == "__main__":
             raise Exception("Failed")
             return {}
 
-    sm = PersistentStateMachine([
+    pm = PhaseManager([
         Step1(),
         Step2(),
         Fail()
@@ -270,7 +270,7 @@ if __name__ == "__main__":
     # start_from="Step1"
     )
     try:
-        sm.run_state_machine()
+        pm.run_state_machine()
     except StateMachineError as e:
         print(f"Error: {e}")
     finally:

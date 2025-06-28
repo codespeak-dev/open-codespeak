@@ -7,7 +7,7 @@ import anthropic
 from colors import Colors
 from with_step import with_step
 
-from state_machine import State, Phase, Context
+from phase_manager import State, Phase, Context
 
 
 def add_import_to_file(file_path: str, import_statement: str):

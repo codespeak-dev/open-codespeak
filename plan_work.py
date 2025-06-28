@@ -4,7 +4,7 @@ import os
 import re
 from colors import Colors
 from data_serializer import text_file
-from state_machine import State, Phase, Context
+from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 
 PLAN_SCREENS_SYSTEM_PROMPT = """
