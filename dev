@@ -1,0 +1,212 @@
+#!/bin/bash
+
+# dev script for managing codespeak test projects
+
+TEST_OUTPUTS_DIR="test_outputs"
+CURRENT_PROJECT_FILE="$TEST_OUTPUTS_DIR/.current_project"
+
+# Ensure test_outputs directory exists
+mkdir -p "$TEST_OUTPUTS_DIR"
+
+# Function to get next sequential number
+get_next_number() {
+    local max_num=0
+    for dir in "$TEST_OUTPUTS_DIR"/[0-9][0-9]_*; do
+        if [[ -d "$dir" ]]; then
+            local num=$(basename "$dir" | cut -d'_' -f1)
+            if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -gt "$max_num" ]; then
+                max_num=$num
+            fi
+        fi
+    done
+    printf "%02d" $((max_num + 1))
+}
+
+# Function to get current project directory
+get_current_project() {
+    if [[ -f "$CURRENT_PROJECT_FILE" ]]; then
+        cat "$CURRENT_PROJECT_FILE"
+    else
+        echo ""
+    fi
+}
+
+# Function to set current project
+set_current_project() {
+    echo "$1" > "$CURRENT_PROJECT_FILE"
+}
+
+# Function to display usage
+usage() {
+    echo "Usage: $0 {new|current|retry|clear|rmcur}"
+    echo ""
+    echo "Commands:"
+    echo "  new <specfile>     Create new project from spec file"
+    echo "  current            Show current project directory"
+    echo "  retry [--project_dir path] [TransitionName]  Retry from specific transition"
+    echo "  clear              Clear all test outputs"
+    echo "  rmcur              Remove current project"
+    echo ""
+    echo "Examples:"
+    echo "  $0 new spec_examples/lumama.spec.md"
+    echo "  $0 retry ExtractEntities"
+    echo "  $0 retry --project_dir test_outputs/02_lumama GenerateDjangoProject"
+}
+
+# Function to create new project
+new_project() {
+    if [[ $# -eq 0 ]]; then
+        echo "Error: specfile is required"
+        usage
+        exit 1
+    fi
+    
+    local specfile="$1"
+    
+    if [[ ! -f "$specfile" ]]; then
+        echo "Error: specfile '$specfile' not found"
+        exit 1
+    fi
+    
+    # Get project name from specfile
+    local project_name=$(basename "$specfile" .spec.md)
+    local next_num=$(get_next_number)
+    local project_dir="$TEST_OUTPUTS_DIR/${next_num}_${project_name}"
+    
+    echo "Creating new project: $project_dir"
+    
+    # Create project directory
+    mkdir -p "$project_dir"
+    
+    # Copy spec file
+    cp "$specfile" "$project_dir/spec.md"
+    
+    # Set as current project
+    set_current_project "$project_dir"
+    
+    echo "Project created: $project_dir"
+    echo "Current project set to: $project_dir"
+    
+    # Run codespeak compile
+    echo "Running codespeak..."    
+    ./codespeak "$project_dir/spec.md" --target-dir "$project_dir"
+}
+
+# Function to show current project
+current_project() {
+    local current=$(get_current_project)
+    if [[ -n "$current" ]]; then
+        echo "Current project: $current"
+        if [[ -d "$current" ]]; then
+            echo "Status: exists"
+        else
+            echo "Status: directory not found"
+        fi
+    else
+        echo "No current project set"
+    fi
+}
+
+# Function to retry from specific transition
+retry_project() {
+    local project_dir=""
+    local transition_name=""
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --project_dir)
+                project_dir="$2"
+                shift 2
+                ;;
+            *)
+                if [[ -z "$transition_name" ]]; then
+                    transition_name="$1"
+                else
+                    echo "Error: unexpected argument '$1'"
+                    usage
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+    
+    # Use current project if no project_dir specified
+    if [[ -z "$project_dir" ]]; then
+        project_dir=$(get_current_project)
+        if [[ -z "$project_dir" ]]; then
+            echo "Error: no current project set and no --project_dir specified"
+            exit 1
+        fi
+    fi
+    
+    if [[ ! -d "$project_dir" ]]; then
+        echo "Error: project directory '$project_dir' not found"
+        exit 1
+    fi
+    
+    # Set as current project
+    set_current_project "$project_dir"
+    
+    echo "Retrying project: $project_dir"
+    if [[ -n "$transition_name" ]]; then
+        echo "Starting from transition: $transition_name"
+        ./codespeak --incremental "$project_dir" --start "$transition_name"
+    else
+        ./codespeak --incremental "$project_dir"
+    fi
+}
+
+# Function to clear all test outputs
+clear_all() {
+    echo "Clearing all test outputs..."
+    if [[ -d "$TEST_OUTPUTS_DIR" ]]; then
+        rm -rf "$TEST_OUTPUTS_DIR"/*
+        rm -f "$TEST_OUTPUTS_DIR"/.current_project
+        echo "All test outputs cleared"
+    else
+        echo "Test outputs directory does not exist"
+    fi
+}
+
+# Function to remove current project
+remove_current() {
+    local current=$(get_current_project)
+    if [[ -n "$current" ]]; then
+        echo "Removing current project: $current"
+        if [[ -d "$current" ]]; then
+            rm -rf "$current"
+            echo "Project directory removed"
+        else
+            echo "Project directory not found"
+        fi
+        rm -f "$CURRENT_PROJECT_FILE"
+        echo "Current project file removed"
+    else
+        echo "No current project set"
+    fi
+}
+
+# Main script logic
+case "${1:-}" in
+    new)
+        new_project "${@:2}"
+        ;;
+    current)
+        current_project
+        ;;
+    retry)
+        retry_project "${@:2}"
+        ;;
+    clear)
+        clear_all
+        ;;
+    rmcur)
+        remove_current
+        ;;
+    *)
+        usage
+        exit 1
+        ;;
+esac 

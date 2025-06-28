@@ -34,3 +34,21 @@ cp env.template .env
 ```bash
 ./setup-hooks.sh
 ```
+
+## Use `./dev` for testing and debugging
+
+```
+Usage: ./dev {new|current|retry|clear|rmcur}
+
+Commands:
+  new <specfile>     Create new project from spec file
+  current            Show current project directory
+  retry [--project_dir path] [TransitionName]  Retry from specific transition
+  clear              Clear all test outputs
+  rmcur              Remove current project
+
+Examples:
+  ./dev new spec_examples/lumama.spec.md
+  ./dev retry ExtractEntities
+  ./dev retry --project_dir test_outputs/02_lumama GenerateDjangoProject
+```

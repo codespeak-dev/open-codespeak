@@ -8,18 +8,17 @@ from extract_entities import Entity
 from state_machine import State, Transition, Context
 
 
-def generate_django_project_from_template(target_dir: str, project_name: str, entities: List[Entity], app_name: str = "web"):
+def generate_django_project_from_template(project_path: str, project_name: str, entities: List[Entity], app_name: str = "web"):
     template_dir = "app_template"
-    project_root = os.path.join(target_dir, project_name)
-    shutil.copytree(template_dir, project_root, dirs_exist_ok=True)
+    shutil.copytree(template_dir, project_path, dirs_exist_ok=True)
 
     shutil.move(
-        os.path.join(project_root, '_project_'),
-        os.path.join(project_root, project_name)
+        os.path.join(project_path, '_project_'),
+        os.path.join(project_path, project_name)
     )
 
     secret_key = secrets.token_urlsafe(50)
-    env = Environment(loader=FileSystemLoader(project_root))
+    env = Environment(loader=FileSystemLoader(project_path))
     context = {
         'project_name': project_name,
         'app_name': app_name,
@@ -34,15 +33,15 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
             f.write(content)
 
 
-    project_settings_root = os.path.join(project_root, project_name)
+    project_settings_root = os.path.join(project_path, project_name)
     files_to_template = [
         # (template_path, output_path)
         (f'{project_name}/settings.py', os.path.join(project_settings_root, 'settings.py')),
-        (f'{app_name}/models.py', os.path.join(project_root, app_name, 'models.py')),
-        (f'{app_name}/views.py', os.path.join(project_root, app_name, 'views.py')),
+        (f'{app_name}/models.py', os.path.join(project_path, app_name, 'models.py')),
+        (f'{app_name}/views.py', os.path.join(project_path, app_name, 'views.py')),
         (f'{project_name}/asgi.py', os.path.join(project_settings_root, 'asgi.py')),
         (f'{project_name}/wsgi.py', os.path.join(project_settings_root, 'wsgi.py')),
-        ('manage.py', os.path.join(project_root, 'manage.py')),
+        ('manage.py', os.path.join(project_path, 'manage.py')),
     ]
 
     for template_path, output_path in files_to_template:
@@ -51,14 +50,14 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
 class GenerateDjangoProject(Transition):
     def run(self, state: State, context: Context = None) -> dict:
         project_name = state["project_name"]
-        target_dir = state["target_dir"]
+        project_path = state["project_path"]
         entities = state["entities"]
-        print(f"Generating Django project in {target_dir} with name {project_name}")
-        generate_django_project_from_template(target_dir, project_name, entities, "web")
+        print(f"Generating Django project in {project_path} with name {project_name}")
+        generate_django_project_from_template(project_path, project_name, entities, "web")
         return {}
 
     def cleanup(self, state: State, context: Context = None):
-        target_dir = state["target_dir"]
+        project_path = state["project_path"]
         project_name = state["project_name"]
 
         def rm(settings_path):
@@ -69,7 +68,7 @@ class GenerateDjangoProject(Transition):
                     os.remove(settings_path)
                 print(f"* Removed {settings_path}")
 
-        rm(os.path.join(target_dir, project_name, project_name))
-        rm(os.path.join(target_dir, project_name, "web"))
-        rm(os.path.join(target_dir, project_name, "manage.py"))
+        rm(os.path.join(project_path, project_name, project_name))
+        rm(os.path.join(project_path, project_name, "web"))
+        rm(os.path.join(project_path, project_name, "manage.py"))
 

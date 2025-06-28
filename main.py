@@ -4,7 +4,6 @@ import dotenv
 from colors import Colors
 from data_serializer import text_file
 from extract_entities import ExtractEntities, RefineEntities
-from extract_project_name import ExtractProjectName
 from generate_django_project import GenerateDjangoProject
 from makemigrations import MakeMigrations
 from migrate import Migrate
@@ -44,10 +43,12 @@ def main():
         with open(spec_file, 'r') as f:
             spec = f.read()
 
+        project_path = os.path.dirname(spec_file)
         initial_state = {
             "spec_file": spec_file,
             "spec": spec,
-            "target_dir": args.target_dir,
+            "project_path": project_path,
+            "project_name": os.path.basename(project_path),            
         }
 
     psm = PersistentStateMachine(
@@ -59,7 +60,6 @@ def main():
                     "spec": text_file("spec.md"),
                 }
             ),
-            ExtractProjectName(),        
             ExtractEntities(),
             RefineEntities(),
             GenerateDjangoProject(),
