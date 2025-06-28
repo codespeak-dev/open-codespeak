@@ -69,7 +69,7 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
 
 
 class GenerateIntegrationTests(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 
         views_content = read_views_file(project_path)
@@ -77,6 +77,6 @@ class GenerateIntegrationTests(Transition):
         test_code = generate_integration_tests(views_content)
         test_file_path = save_test_to_project(test_code, project_path)
 
-        return state.clone({
+        return {
             "integration_test_path": test_file_path
-        })
+        }

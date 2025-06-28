@@ -34,7 +34,7 @@ def prefixed_project_name(base_name: str) -> str:
     return f"{prefix}_{base_name}"
 
 class ExtractProjectName(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
         with with_step("Extracting project name from Claude..."):
             project_name_base = extract_project_name(spec)
@@ -44,7 +44,7 @@ class ExtractProjectName(Transition):
         project_path = os.path.join(state["target_dir"], project_name)
         os.makedirs(project_path, exist_ok=True)
 
-        return state.clone({
+        return {
             "project_name": project_name,
             "project_path": project_path
-        })
+        }

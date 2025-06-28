@@ -80,7 +80,7 @@ def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
     return applied_fixes
 
 class MakeMigrations(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 
         def makemigrations():
@@ -115,4 +115,4 @@ class MakeMigrations(Transition):
             makemigrations()
         print("makemigrations complete.")
 
-        return state.clone()
+        return {}

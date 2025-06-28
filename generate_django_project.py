@@ -49,13 +49,13 @@ def generate_django_project_from_template(target_dir: str, project_name: str, en
         render_and_write(template_path, output_path)
 
 class GenerateDjangoProject(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         project_name = state["project_name"]
         target_dir = state["target_dir"]
         entities = state["entities"]
         print(f"Generating Django project in {target_dir} with name {project_name}")
         generate_django_project_from_template(target_dir, project_name, entities, "web")
-        return state.clone()
+        return {}
 
     def cleanup(self, state: State, context: Context = None):
         target_dir = state["target_dir"]

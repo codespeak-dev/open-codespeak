@@ -200,14 +200,14 @@ def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tupl
             sys.exit(0)
 
 class ExtractEntities(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
 
         entities = extract_models_and_fields(spec)
 
-        return state.clone({
+        return {
             "entities": entities
-        })
+        }
     
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return {
@@ -215,7 +215,7 @@ class ExtractEntities(Transition):
         }
     
 class RefineEntities(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
         entities = state["entities"]
 
@@ -225,6 +225,6 @@ class RefineEntities(Transition):
             print(f"{Colors.BRIGHT_YELLOW}Project generation cancelled{Colors.END}")
             sys.exit(0)
 
-        return state.clone({
+        return {
             "entities": final_entities
-        })
+        }

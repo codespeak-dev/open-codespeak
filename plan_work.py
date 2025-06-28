@@ -1,7 +1,9 @@
+from typing import Dict
 import anthropic
 import os
 import re
 from colors import Colors
+from data_serializer import text_file
 from state_machine import State, Transition, Context
 from with_step import with_streaming_step
 
@@ -45,7 +47,7 @@ def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
     return response_text.strip()
 
 class PlanWork(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]
         verbose = context.verbose if context else False
@@ -54,6 +56,11 @@ class PlanWork(Transition):
 
         plan = plan_work_with_claude(spec, stories, project_path)
 
-        return state.clone({
+        return {
             "work": plan
-        })
+        }
+
+    def get_state_schema_entries(self) -> Dict[str, dict]:
+        return {
+            "work": text_file("work.txt")
+        }

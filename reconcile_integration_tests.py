@@ -324,7 +324,7 @@ Please use the tools to analyze the project structure, identify what's causing t
 
 
 class ReconcileIntegrationTests(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
         test_file_path = state["integration_test_path"]
 
@@ -409,4 +409,4 @@ class ReconcileIntegrationTests(Transition):
                         })
                         raise Exception("Maximum retries exceeded - unable to resolve all issues")
 
-        return state.clone()
+        return {}

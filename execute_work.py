@@ -257,7 +257,7 @@ class ImplementationAgent:
         print(f"{Colors.BRIGHT_GREEN}Implementation generated and logged{Colors.END}")
 
 class ExecuteWork(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK TRANSITION STARTED ==={Colors.END}")
 
         work = state["work"]
@@ -312,7 +312,7 @@ class ExecuteWork(Transition):
         for i, entry in enumerate(agent.history[-5:]):  # Show last 5 entries
             print(f"    {i+1}. {entry}")
 
-        return state.clone({
+        return {
             "screens": screens,
             "implementation_history": agent.history
-        })
+        }

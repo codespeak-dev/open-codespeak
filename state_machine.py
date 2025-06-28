@@ -59,7 +59,7 @@ class Transition:
         pass
 
     @abstractmethod
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         pass
 
     def cleanup(self, state: State, context: Context = None):
@@ -73,15 +73,15 @@ class Start(Transition):
         self.initial_state = initial_state
         self.state_schema = state_schema
 
-    def run(self, state: State, context: Context = None) -> State:
-        return state.clone(self.initial_state)
+    def run(self, state: State, context: Context = None) -> dict:
+        return self.initial_state
     
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return self.state_schema
 
 class Done(Transition):
-    def run(self, state: State, context: Context = None) -> State:
-        return state.clone()
+    def run(self, state: State, context: Context = None) -> dict:
+        return {}
 
 class StateMachineError(Exception):
     pass
@@ -112,7 +112,7 @@ class PersistentStateMachine:
         self.current_state = State(
             data=initial_state or {},
             _internal_data={
-                self.LAST_SUCCESSFUL_TRANSITION: self.INITIAL_TRANSITION,
+                # self.LAST_SUCCESSFUL_TRANSITION: self.INITIAL_TRANSITION,
                 self.SCHEMA: self.state_schema
             }
         )
@@ -146,25 +146,25 @@ class PersistentStateMachine:
         # print(state.data)
         for transition in self.transitions:
             current_transition = transition.__class__.__name__        
-            last_executed_transition = state.internal.get(self.LAST_SUCCESSFUL_TRANSITION)
+            last_successful = state.internal.get(self.LAST_SUCCESSFUL_TRANSITION)
 
             if self.start_from:
                 sf_index = transition_names.index(self.start_from)
                 if sf_index < 0:
                     raise StateMachineError(f"Transition {self.start_from} not found")
                 
-                if sf_index > transition_names.index(last_executed_transition) + 1:
+                if last_successful and sf_index > transition_names.index(last_successful) + 1:
                     raise StateMachineError(f"Transition {self.start_from} is not a valid starting point")
 
                 if sf_index > 0:
-                    last_executed_transition = self.transitions[sf_index - 1].__class__.__name__                
+                    last_successful = self.transitions[sf_index - 1].__class__.__name__                
 
-            if last_executed_transition in transition_names and transition_names.index(last_executed_transition) >= transition_names.index(current_transition):
+            if last_successful in transition_names and transition_names.index(last_successful) >= transition_names.index(current_transition):
                 print(f"Transition {current_transition} has already been executed, skipping...")
                 continue
 
             last_failed_transition = state.internal.get(self.LAST_FAILED_TRANSITION)
-            if last_failed_transition == current_transition and last_failed_transition != last_executed_transition:
+            if last_failed_transition == current_transition and last_failed_transition != last_successful:
                 print(f"Transition {current_transition} failed last time, cleaning up...")
                 transition.cleanup(state, self.context)
 
@@ -185,11 +185,11 @@ class PersistentStateMachine:
             }
 
             try:
-                new_state = transition.run(state, self.context)
-                if not new_state or not isinstance(new_state, State):
-                    raise StateMachineError(f"Transition {current_transition} returned a non-State object")
+                delta = transition.run(state, self.context)
+                if not isinstance(delta, dict):
+                    raise StateMachineError(f"Transition {current_transition} returned a non-dict object")
                 
-                state = new_state._clone_internal({
+                state = state.clone(delta)._clone_internal({
                     self.LAST_SUCCESSFUL_TRANSITION: current_transition,
                     **standard_fields,
                     **append_to_history()
@@ -228,18 +228,18 @@ class PersistentStateMachine:
 if __name__ == "__main__":
 
     class Step1(Transition):
-        def run(self, state: State, context: Context = None) -> State:
+        def run(self, state: State, context: Context = None) -> dict:
             print(state.data)
-            return state.clone({
+            return {
                 "project_name": "My Project"
-            })
+            }
         
         def get_state_schema_entries(self) -> Dict[str, dict]:
             return {}
 
     class Step2(Transition):
-        def run(self, state: State, context: Context = None) -> State:
-            return state.clone({
+        def run(self, state: State, context: Context = None) -> dict:
+            return {
                 "entities": [
                     {
                         "name": "User",
@@ -249,7 +249,7 @@ if __name__ == "__main__":
                         ]
                     }
                 ]
-            })
+            }
         
         def get_state_schema_entries(self) -> Dict[str, dict]:
             return {
@@ -257,11 +257,11 @@ if __name__ == "__main__":
             }
         
     class Fail(Transition):
-        def run(self, state: State, context: Context = None) -> State:
+        def run(self, state: State, context: Context = None) -> dict:
             print(state.data)
             # pass
             raise Exception("Failed")
-            return state.clone({"done": True})
+            return {}
 
     sm = PersistentStateMachine([
         Step1(),
@@ -275,6 +275,6 @@ if __name__ == "__main__":
     except StateMachineError as e:
         print(f"Error: {e}")
     finally:
-        with open("state.json", "r") as f:
+        with open("test_outputs/state.json", "r") as f:
             print(f.read())
-        # os.remove("state.json")
+        # os.remove("test_outputs/state.json")

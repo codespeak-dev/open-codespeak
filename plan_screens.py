@@ -1,7 +1,9 @@
+from typing import Dict
 import anthropic
 import os
 import re
 from colors import Colors
+from data_serializer import text_file
 from state_machine import State, Transition, Context
 from with_step import with_streaming_step
 
@@ -111,7 +113,7 @@ def read_models_file(project_path: str) -> str:
         return f.read()
 
 class PlanScreens(Transition):
-    def run(self, state: State, context: Context = None) -> State:
+    def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]
         verbose = context.verbose if context else False
@@ -127,6 +129,11 @@ class PlanScreens(Transition):
         # else:
         #     print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned {len(screens)} screens{Colors.END}")
 
-        return state.clone({
+        return {
             "stories": stories
-        })
+        }
+    
+    def get_state_schema_entries(self) -> Dict[str, dict]:
+        return {
+            "stories": text_file("stories.txt")
+        }
