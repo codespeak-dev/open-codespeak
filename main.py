@@ -52,8 +52,9 @@ def main():
 
     psm = PersistentStateMachine(
         [
+            # TODO: go away from detecting project name and make basic config deterministic
             Start(
-                initial_state, 
+                {}, 
                 {
                     "spec": text_file("spec.md"),
                 }
@@ -72,6 +73,7 @@ def main():
             Done(),
         ], 
         lambda state: os.path.join(state["project_path"], "codespeak_state.json") if "project_path" in state else None,
+        initial_state=initial_state,
         context=Context(verbose=args.verbose),
         start_from=args.start
     )
