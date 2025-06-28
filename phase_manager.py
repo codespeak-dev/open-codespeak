@@ -147,16 +147,7 @@ class PhaseManager:
             current_phase = phase.__class__.__name__        
             last_successful = state.internal.get(self.LAST_SUCCESSFUL_PHASE)
 
-            if self.start_from:
-                sf_index = phase_names.index(self.start_from)
-                if sf_index < 0:
-                    raise StateMachineError(f"Phase {self.start_from} not found")
-                
-                if last_successful and sf_index > phase_names.index(last_successful) + 1:
-                    raise StateMachineError(f"Phase {self.start_from} is not a valid starting point")
-
-                if sf_index > 0:
-                    last_successful = self.phases[sf_index - 1].__class__.__name__                
+            last_successful = self.calculate_starting_state(phase_names, last_successful)                
 
             if last_successful in phase_names and phase_names.index(last_successful) >= phase_names.index(current_phase):
                 print(f"Phase {current_phase} has already been executed, skipping...")
@@ -206,6 +197,19 @@ class PhaseManager:
             # print(state.data)
 
         return state
+
+    def calculate_starting_state(self, phase_names, last_successful):
+        if self.start_from:
+            sf_index = phase_names.index(self.start_from)
+            if sf_index < 0:
+                raise StateMachineError(f"Phase {self.start_from} not found")
+                
+            if last_successful and sf_index > phase_names.index(last_successful) + 1:
+                raise StateMachineError(f"Phase {self.start_from} is not a valid starting point")
+
+            if sf_index > 0:
+                last_successful = self.phases[sf_index - 1].__class__.__name__
+        return last_successful
 
     def load_state(self, state_file):
         with open(state_file, "r") as f:
