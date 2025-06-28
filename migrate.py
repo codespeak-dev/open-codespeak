@@ -1,11 +1,11 @@
 import subprocess
 import sys
 
-from state_machine import State, Transition, Context
+from state_machine import State, Phase, Context
 from with_step import with_step
 
 
-class Migrate(Transition):
+class Migrate(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 

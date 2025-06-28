@@ -24,7 +24,7 @@ def main():
                        default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
                        help='Target directory for the generated project (defaults to CODESPEAK_TARGET_DIR env var or current directory)')
     parser.add_argument('--incremental', help='Path to the project output dir')
-    parser.add_argument('--start', help='Start from a specific transition. Only works in incremental mode.')
+    parser.add_argument('--start', help='Start from a specific phase. Only works in incremental mode.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
     args = parser.parse_args()
 

@@ -5,7 +5,7 @@ import anthropic
 import json
 from typing import Dict, Any, Optional, List, Tuple
 from colors import Colors
-from state_machine import State, Transition, Context
+from state_machine import State, Phase, Context
 from with_step import with_step
 
 
@@ -323,7 +323,7 @@ Please use the tools to analyze the project structure, identify what's causing t
     return False, "Maximum iterations reached while trying to fix issues", updated_test_code
 
 
-class ReconcileIntegrationTests(Transition):
+class ReconcileIntegrationTests(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
         test_file_path = state["integration_test_path"]

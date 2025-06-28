@@ -2,7 +2,7 @@ import anthropic
 import os
 import re
 from colors import Colors
-from state_machine import State, Transition, Context
+from state_machine import State, Phase, Context
 from with_step import with_streaming_step
 
 IMPLEMENTATION_SYSTEM_PROMPT = """
@@ -256,9 +256,9 @@ class ImplementationAgent:
         self.history.append(f"Generated implementation for screen")
         print(f"{Colors.BRIGHT_GREEN}Implementation generated and logged{Colors.END}")
 
-class ExecuteWork(Transition):
+class ExecuteWork(Phase):
     def run(self, state: State, context: Context = None) -> dict:
-        print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK TRANSITION STARTED ==={Colors.END}")
+        print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK PHASE STARTED ==={Colors.END}")
 
         work = state["work"]
         project_path = state["project_path"]
@@ -304,7 +304,7 @@ class ExecuteWork(Transition):
             print(f"  Agent history entries so far: {len(agent.history)}")
             print()
 
-        print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK TRANSITION COMPLETED ==={Colors.END}")
+        print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK PHASE COMPLETED ==={Colors.END}")
         print(f"{Colors.BRIGHT_YELLOW}[SUMMARY]{Colors.END} Final summary:")
         print(f"  Screens processed: {len(screens)}")
         print(f"  Agent history entries: {len(agent.history)}")

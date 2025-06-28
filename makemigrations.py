@@ -7,7 +7,7 @@ import anthropic
 from colors import Colors
 from with_step import with_step
 
-from state_machine import State, Transition, Context
+from state_machine import State, Phase, Context
 
 
 def add_import_to_file(file_path: str, import_statement: str):
@@ -79,7 +79,7 @@ def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
 
     return applied_fixes
 
-class MakeMigrations(Transition):
+class MakeMigrations(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 

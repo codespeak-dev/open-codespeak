@@ -43,7 +43,7 @@ Usage: ./dev {new|current|retry|clear|rmcur}
 Commands:
   new <specfile>     Create new project from spec file
   current            Show current project directory
-  retry [--project_dir path] [TransitionName]  Retry from specific transition
+  retry [--project_dir path] [PhaseName]  Retry from specific phase
   clear              Clear all test outputs
   rmcur              Remove current project
 

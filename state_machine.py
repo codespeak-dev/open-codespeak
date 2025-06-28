@@ -54,7 +54,7 @@ class State:
     def __contains__(self, key: str) -> bool:
         return key in self._data
 
-class Transition:
+class Phase:
     def __init__(self):
         pass
 
@@ -68,7 +68,7 @@ class Transition:
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return {}
 
-class Start(Transition):
+class Start(Phase):
     def __init__(self, initial_state: dict, state_schema: Dict[str, dict]):
         self.initial_state = initial_state
         self.state_schema = state_schema
@@ -79,7 +79,7 @@ class Start(Transition):
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return self.state_schema
 
-class Done(Transition):
+class Done(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         return {}
 
@@ -89,21 +89,21 @@ class StateMachineError(Exception):
 class PersistentStateMachine:    
     INITIAL_TRANSITION = "__initial"
     STATEMACHINE_ATTRIBUTE = "__statemachine"
-    LAST_SUCCESSFUL_TRANSITION = "__last_successful"
-    LAST_FAILED_TRANSITION = "__last_failed"
+    LAST_SUCCESSFUL_PHASE = "__last_successful"
+    LAST_FAILED_PHASE = "__last_failed"
     HISTORY = "__history"
     SCHEMA = "__schema"
 
     def __init__(
             self, 
-            transitions: list[Transition], 
+            phases: list[Phase], 
             state_file: Callable[[State], str | None], 
             initial_state: dict | None = None, 
             context: Context = None,
             start_from: str = None
         ):
-        self.transitions = transitions
-        self.state_schema = self.calculate_schema(transitions)
+        self.phases = phases
+        self.state_schema = self.calculate_schema(phases)
 
         self.state_file = state_file
         self.context = context or Context()
@@ -112,7 +112,6 @@ class PersistentStateMachine:
         self.current_state = State(
             data=initial_state or {},
             _internal_data={
-                # self.LAST_SUCCESSFUL_TRANSITION: self.INITIAL_TRANSITION,
                 self.SCHEMA: self.state_schema
             }
         )
@@ -121,59 +120,59 @@ class PersistentStateMachine:
         if state_file and os.path.exists(state_file):
             print(f"Loading state from {state_file}")
             self.load_state(state_file)
-            print(f"  * Last executed transition: {self.current_state.internal.get(self.LAST_SUCCESSFUL_TRANSITION)}")
+            print(f"  * Last executed phase: {self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)}")
 
-    def calculate_schema(self, transitions: list[Transition]) -> Dict[str, dict]:
-        BY_TRANSITION = "__by_transition"
+    def calculate_schema(self, phases: list[Phase]) -> Dict[str, dict]:
+        BY_PHASE = "__by_phase"
 
         schema = {}
-        for transition in transitions:
-            for key, value in transition.get_state_schema_entries().items():
+        for phase in phases:
+            for key, value in phase.get_state_schema_entries().items():
                 if key in schema:
                     raise StateMachineError(
-                        f"Key '{key}' in state schema is contributed by {transition.__class__.__name__} and {schema[key][BY_TRANSITION]}")
+                        f"Key '{key}' in state schema is contributed by {phase.__class__.__name__} and {schema[key][BY_PHASE]}")
                 validate_schema_entry(value)
                 schema[key] = {
                     **value,
-                    BY_TRANSITION: transition.__class__.__name__
+                    BY_PHASE: phase.__class__.__name__
                 }
 
         return schema
 
     def run_state_machine(self) -> State:
-        transition_names = [transition.__class__.__name__ for transition in self.transitions]
+        phase_names = [phase.__class__.__name__ for phase in self.phases]
         state = self.current_state
         # print(state.data)
-        for transition in self.transitions:
-            current_transition = transition.__class__.__name__        
-            last_successful = state.internal.get(self.LAST_SUCCESSFUL_TRANSITION)
+        for phase in self.phases:
+            current_phase = phase.__class__.__name__        
+            last_successful = state.internal.get(self.LAST_SUCCESSFUL_PHASE)
 
             if self.start_from:
-                sf_index = transition_names.index(self.start_from)
+                sf_index = phase_names.index(self.start_from)
                 if sf_index < 0:
-                    raise StateMachineError(f"Transition {self.start_from} not found")
+                    raise StateMachineError(f"Phase {self.start_from} not found")
                 
-                if last_successful and sf_index > transition_names.index(last_successful) + 1:
-                    raise StateMachineError(f"Transition {self.start_from} is not a valid starting point")
+                if last_successful and sf_index > phase_names.index(last_successful) + 1:
+                    raise StateMachineError(f"Phase {self.start_from} is not a valid starting point")
 
                 if sf_index > 0:
-                    last_successful = self.transitions[sf_index - 1].__class__.__name__                
+                    last_successful = self.phases[sf_index - 1].__class__.__name__                
 
-            if last_successful in transition_names and transition_names.index(last_successful) >= transition_names.index(current_transition):
-                print(f"Transition {current_transition} has already been executed, skipping...")
+            if last_successful in phase_names and phase_names.index(last_successful) >= phase_names.index(current_phase):
+                print(f"Phase {current_phase} has already been executed, skipping...")
                 continue
 
-            last_failed_transition = state.internal.get(self.LAST_FAILED_TRANSITION)
-            if last_failed_transition == current_transition and last_failed_transition != last_successful:
-                print(f"Transition {current_transition} failed last time, cleaning up...")
-                transition.cleanup(state, self.context)
+            last_failed_phase = state.internal.get(self.LAST_FAILED_PHASE)
+            if last_failed_phase == current_phase and last_failed_phase != last_successful:
+                print(f"Phase {current_phase} failed last time, cleaning up...")
+                phase.cleanup(state, self.context)
 
             def append_to_history(data: dict | None = None) -> dict:
                 return {
                     self.HISTORY: [
                         *state.internal.get(self.HISTORY, []),
                         {
-                            "transition": current_transition,
+                            "phase": current_phase,
                             "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                             **(data or {})
                         }
@@ -185,19 +184,19 @@ class PersistentStateMachine:
             }
 
             try:
-                delta = transition.run(state, self.context)
+                delta = phase.run(state, self.context)
                 if not isinstance(delta, dict):
-                    raise StateMachineError(f"Transition {current_transition} returned a non-dict object")
+                    raise StateMachineError(f"Phase {current_phase} returned a non-dict object")
                 
                 state = state.clone(delta)._clone_internal({
-                    self.LAST_SUCCESSFUL_TRANSITION: current_transition,
+                    self.LAST_SUCCESSFUL_PHASE: current_phase,
                     **standard_fields,
                     **append_to_history()
                 })
             except Exception as e:
-                print(f"Error running transition {current_transition}: {e}")
+                print(f"Error running phase {current_phase}: {e}")
                 self.save_state(state._clone_internal({
-                    self.LAST_FAILED_TRANSITION: current_transition,
+                    self.LAST_FAILED_PHASE: current_phase,
                     **standard_fields,
                     **append_to_history({"error": str(e)})
                 }))
@@ -227,7 +226,7 @@ class PersistentStateMachine:
 
 if __name__ == "__main__":
 
-    class Step1(Transition):
+    class Step1(Phase):
         def run(self, state: State, context: Context = None) -> dict:
             print(state.data)
             return {
@@ -237,7 +236,7 @@ if __name__ == "__main__":
         def get_state_schema_entries(self) -> Dict[str, dict]:
             return {}
 
-    class Step2(Transition):
+    class Step2(Phase):
         def run(self, state: State, context: Context = None) -> dict:
             return {
                 "entities": [
@@ -256,7 +255,7 @@ if __name__ == "__main__":
                 "entities": json_file("entities.json")
             }
         
-    class Fail(Transition):
+    class Fail(Phase):
         def run(self, state: State, context: Context = None) -> dict:
             print(state.data)
             # pass

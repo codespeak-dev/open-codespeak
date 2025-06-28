@@ -43,7 +43,7 @@ usage() {
     echo "Commands:"
     echo "  new <specfile>     Create new project from spec file"
     echo "  current            Show current project directory"
-    echo "  retry [--project_dir path] [TransitionName]  Retry from specific transition"
+    echo "  retry [--project_dir path] [PhaseName]  Retry from specific phase"
     echo "  clear              Clear all test outputs"
     echo "  rmcur              Remove current project"
     echo ""
@@ -107,10 +107,10 @@ current_project() {
     fi
 }
 
-# Function to retry from specific transition
+# Function to retry from specific phase
 retry_project() {
     local project_dir=""
-    local transition_name=""
+    local phase_name=""
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -120,8 +120,8 @@ retry_project() {
                 shift 2
                 ;;
             *)
-                if [[ -z "$transition_name" ]]; then
-                    transition_name="$1"
+                if [[ -z "$phase_name" ]]; then
+                    phase_name="$1"
                 else
                     echo "Error: unexpected argument '$1'"
                     usage
@@ -150,9 +150,9 @@ retry_project() {
     set_current_project "$project_dir"
     
     echo "Retrying project: $project_dir"
-    if [[ -n "$transition_name" ]]; then
-        echo "Starting from transition: $transition_name"
-        ./codespeak --incremental "$project_dir" --start "$transition_name"
+    if [[ -n "$phase_name" ]]; then
+        echo "Starting from phase: $phase_name"
+        ./codespeak --incremental "$project_dir" --start "$phase_name"
     else
         ./codespeak --incremental "$project_dir"
     fi

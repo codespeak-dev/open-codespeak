@@ -4,7 +4,7 @@ import os
 import re
 from colors import Colors
 from data_serializer import text_file
-from state_machine import State, Transition, Context
+from state_machine import State, Phase, Context
 from with_step import with_streaming_step
 
 PLAN_SCREENS_SYSTEM_PROMPT = """
@@ -112,7 +112,7 @@ def read_models_file(project_path: str) -> str:
     with open(models_path, 'r') as f:
         return f.read()
 
-class PlanScreens(Transition):
+class PlanScreens(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]

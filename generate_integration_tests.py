@@ -5,7 +5,7 @@ import anthropic
 import json
 from typing import Dict, Any, Optional
 from colors import Colors
-from state_machine import State, Transition, Context
+from state_machine import State, Phase, Context
 from with_step import with_streaming_step
 
 
@@ -68,7 +68,7 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
     return test_file_path
 
 
-class GenerateIntegrationTests(Transition):
+class GenerateIntegrationTests(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 

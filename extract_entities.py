@@ -4,7 +4,7 @@ import anthropic
 import inquirer
 from colors import Colors
 from data_serializer import json_file
-from state_machine import State, Transition, Context
+from state_machine import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Tuple
@@ -199,7 +199,7 @@ def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tupl
             print(f"\n{Colors.BRIGHT_YELLOW}Cancelled by user{Colors.END}")
             sys.exit(0)
 
-class ExtractEntities(Transition):
+class ExtractEntities(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
 
@@ -214,7 +214,7 @@ class ExtractEntities(Transition):
             "entities": json_file("entities.json")
         }
     
-class RefineEntities(Transition):
+class RefineEntities(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
         entities = state["entities"]
