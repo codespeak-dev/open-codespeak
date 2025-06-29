@@ -30,6 +30,7 @@ def main():
 
     if args.incremental:
         print(f"Running in incremental mode from {args.incremental}")
+        project_path = args.incremental
         initial_state = {
             "project_path": args.incremental,
         }
@@ -72,7 +73,7 @@ def main():
             ExecuteWork(),
             Done(),
         ], 
-        lambda state: os.path.join(state["project_path"], "codespeak_state.json") if "project_path" in state else None,
+        os.path.join(project_path, "codespeak_state.json"),
         initial_state=initial_state,
         context=Context(verbose=args.verbose),
         start_from=args.start

@@ -3,7 +3,8 @@ from copy import deepcopy
 import datetime
 import json
 import os
-from typing import Any, Callable, Dict
+from pathlib import Path
+from typing import Any, Dict
 
 from data_serializer import decode_data, encode_data, json_file, validate_schema_entry
 
@@ -97,7 +98,7 @@ class PhaseManager:
     def __init__(
             self, 
             phases: list[Phase], 
-            state_file: Callable[[State], str | None], 
+            state_file: Path, 
             initial_state: dict | None = None, 
             context: Context = None,
             start_from: str = None
@@ -116,10 +117,9 @@ class PhaseManager:
             }
         )
 
-        state_file = self.state_file(self.current_state)
-        if state_file and os.path.exists(state_file):
+        if os.path.exists(state_file):
             print(f"Loading state from {state_file}")
-            self.load_state(state_file)
+            self.load_state()
             print(f"  * Last executed phase: {self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)}")
 
     def calculate_schema(self, phases: list[Phase]) -> Dict[str, dict]:
@@ -211,21 +211,20 @@ class PhaseManager:
                 last_successful = self.phases[sf_index - 1].__class__.__name__
         return last_successful
 
-    def load_state(self, state_file):
-        with open(state_file, "r") as f:
-            data = decode_data(json.load(f), self.state_schema, os.path.dirname(state_file))
+    def load_state(self):
+        with open(self.state_file, "r") as f:
+            data = decode_data(json.load(f), self.state_schema, os.path.dirname(self.state_file))
             internal = data.pop(self.STATEMACHINE_ATTRIBUTE, {})
 
             self.current_state = State(data=data, _internal_data=internal)
 
     def save_state(self, state):
-        state_file = self.state_file(state)
-        if state_file:
-            with open(state_file, "w") as f:
+        if self.state_file:
+            with open(self.state_file, "w") as f:
                 json.dump(encode_data({
                     self.STATEMACHINE_ATTRIBUTE: state.internal,
                     **state.data
-                }, self.state_schema, os.path.dirname(state_file)), f, indent=4)
+                }, self.state_schema, os.path.dirname(self.state_file)), f, indent=4)
 
 
 if __name__ == "__main__":
