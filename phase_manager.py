@@ -184,17 +184,16 @@ class PhaseManager:
                     **standard_fields,
                     **append_to_history()
                 })
-            except Exception as e:
-                print(f"Error running phase {current_phase}: {e}")
+            except BaseException as e:
+                print(f"Error running phase {current_phase}: {str(e) or type(e).__name__}")
                 self.save_state(state._clone_internal({
                     self.LAST_FAILED_PHASE: current_phase,
                     **standard_fields,
-                    **append_to_history({"error": str(e)})
+                    **append_to_history({"error": f"{type(e).__name__}: {str(e)}"})
                 }))
                 raise e
 
             self.save_state(state)
-            # print(state.data)
 
         return state
 

@@ -1,6 +1,7 @@
 import argparse
 import os
 import dotenv
+import sys
 from colors import Colors
 from data_serializer import text_file
 from extract_entities import ExtractEntities, RefineEntities
@@ -87,4 +88,8 @@ def main():
     print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+        sys.exit(1)
