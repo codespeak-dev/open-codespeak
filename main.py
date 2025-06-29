@@ -32,9 +32,9 @@ def main():
     if args.incremental:
         print(f"Running in incremental mode from {args.incremental}")
         project_path = args.incremental
-        initial_state = {
-            "project_path": args.incremental,
-        }
+        start = Start({
+            "project_path": project_path,
+        })
     else:
         if not args.filepath:
             print("Error: filepath is required when not in incremental mode")
@@ -46,22 +46,18 @@ def main():
             spec = f.read()
 
         project_path = os.path.dirname(spec_file)
-        initial_state = {
+        start = Start({
             "spec_file": spec_file,
             "spec": spec,
             "project_path": project_path,
             "project_name": os.path.basename(project_path),            
-        }
+        }, {
+            "spec": text_file("spec.md"),
+        })
 
     pm = PhaseManager(
         [
-            # TODO: go away from detecting project name and make basic config deterministic
-            Start(
-                {}, 
-                {
-                    "spec": text_file("spec.md"),
-                }
-            ),
+            start,
             ExtractEntities(),
             RefineEntities(),
             GenerateDjangoProject(),
@@ -74,8 +70,7 @@ def main():
             ExecuteWork(),
             Done(),
         ], 
-        os.path.join(project_path, "codespeak_state.json"),
-        initial_state=initial_state,
+        state_file=os.path.join(project_path, "codespeak_state.json"),
         context=Context(verbose=args.verbose),
         start_from=args.start
     )

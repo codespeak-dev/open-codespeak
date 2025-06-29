@@ -70,9 +70,9 @@ class Phase:
         return {}
 
 class Start(Phase):
-    def __init__(self, initial_state: dict, state_schema: Dict[str, dict]):
-        self.initial_state = initial_state
-        self.state_schema = state_schema
+    def __init__(self, initial_state: dict | None = None, state_schema: Dict[str, dict] | None = None):
+        self.initial_state = initial_state or {}
+        self.state_schema = state_schema or {}
 
     def run(self, state: State, context: Context = None) -> dict:
         return self.initial_state
