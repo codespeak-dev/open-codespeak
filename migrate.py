@@ -10,7 +10,14 @@ class Migrate(Phase):
         project_path = state["project_path"]
 
         def migrate():
-            subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True)
+            try:
+                subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True, capture_output=True)
+            except subprocess.CalledProcessError as e:
+                if e.stdout:
+                    print(e.stdout.decode())
+                if e.stderr:
+                    print(e.stderr.decode())
+                raise
         with with_step("Running migrate..."):
             migrate()
         print("migrate complete.")
