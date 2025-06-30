@@ -510,6 +510,86 @@ class ImplementationAgent:
 
         return tree
 
+    def run_streaming_conversation(self, messages: list) -> dict:
+        """Run a streaming conversation with Claude until completion"""
+        output_tokens = 0
+
+        # Continue conversation until no more tool calls
+        while True:
+            print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with {len(messages)} messages:")
+            for i, message in enumerate(messages):
+                content_preview = self.truncate_for_debug(str(message['content']))
+                print(f"  Message {i+1} ({message['role']}): {content_preview}")
+            print()
+
+            print(f"{Colors.BRIGHT_MAGENTA}[AI STREAMING]{Colors.END} Starting streaming response...")
+
+            # Use the streaming helper for cleaner code
+            with self.client.messages.stream(
+                model="claude-sonnet-4-20250514",
+                max_tokens=10000,
+                temperature=0,
+                system=IMPLEMENTATION_SYSTEM_PROMPT,
+                tools=self.get_tools_schema(),
+                messages=messages
+            ) as stream:
+                print(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
+
+                # Stream text as it arrives
+                for text in stream.text_stream:
+                    print(f"{Colors.GREY}{text}{Colors.END}", end="", flush=True)
+
+                print()  # New line after streaming text
+
+                # Get the final message with all content blocks
+                final_message = stream.get_final_message()
+
+            print(f"{Colors.BRIGHT_MAGENTA}[AI RESPONSE]{Colors.END} Streaming completed")
+            print(f"  Output tokens: {final_message.usage.output_tokens}")
+            output_tokens += final_message.usage.output_tokens
+
+            # Add assistant message to conversation  
+            messages.append({
+                "role": "assistant", 
+                "content": final_message.content
+            })
+
+            # Check if there are tool calls to execute
+            tool_calls = [block for block in final_message.content if hasattr(block, 'type') and block.type == "tool_use"]
+
+            if not tool_calls:
+                print(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more tool calls, conversation complete")
+                break
+
+            print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(tool_calls)} tool calls")
+
+            # Execute tool calls and collect results
+            tool_results = []
+            for tool_call in tool_calls:
+                print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Executing tool: {tool_call.name}")
+                result = self.execute_tool_call(tool_call.name, tool_call.input)
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool_call.id,
+                    "content": json.dumps(result)
+                })
+
+                result_preview = self.truncate_for_debug(json.dumps(result))
+                print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
+                print(f"  Result: {result_preview}")
+
+            # Add tool results to conversation
+            messages.append({
+                "role": "user",
+                "content": tool_results
+            })
+
+        return {
+            "messages": messages,
+            "total_output_tokens": output_tokens
+        }
+
     def implement_screen(self, screen_text: str):
         """Implement a screen by creating views and templates"""
         print(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Starting screen implementation")
@@ -548,70 +628,14 @@ class ImplementationAgent:
         # Initialize token tracking
         messages = [{"role": "user", "content": prompt}]
         input_tokens = len(prompt.split()) + len(IMPLEMENTATION_SYSTEM_PROMPT.split())
-        output_tokens = 0
         print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Estimated input tokens: {input_tokens}")
 
-        # Continue conversation until no more tool calls
-        while True:
-            print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with {len(messages)} messages:")
-            for i, message in enumerate(messages):
-                content_preview = self.truncate_for_debug(str(message['content']))
-                print(f"  Message {i+1} ({message['role']}): {content_preview}")
-            print()
-
-            response = self.client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=10000,
-                temperature=0,
-                system=IMPLEMENTATION_SYSTEM_PROMPT,
-                tools=self.get_tools_schema(),
-                messages=messages
-            )
-
-            output_tokens += response.usage.output_tokens
-            print(f"{Colors.BRIGHT_MAGENTA}[AI RESPONSE]{Colors.END} Received response")
-            print(f"  Output tokens: {response.usage.output_tokens}")
-
-            # Add assistant message to conversation
-            messages.append({
-                "role": "assistant", 
-                "content": response.content
-            })
-
-            # Check if there are tool calls to execute
-            tool_calls = [block for block in response.content if block.type == "tool_use"]
-
-            if not tool_calls:
-                print(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more tool calls, conversation complete")
-                break
-
-            print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(tool_calls)} tool calls")
-
-            # Execute tool calls and collect results
-            tool_results = []
-            for tool_call in tool_calls:
-                print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Executing tool: {tool_call.name}")
-                result = self.execute_tool_call(tool_call.name, tool_call.input)
-
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_call.id,
-                    "content": json.dumps(result)
-                })
-
-                result_preview = self.truncate_for_debug(json.dumps(result))
-                print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
-                print(f"  Result: {result_preview}")
-
-            # Add tool results to conversation
-            messages.append({
-                "role": "user",
-                "content": tool_results
-            })
+        # Run the streaming conversation
+        result = self.run_streaming_conversation(messages)
 
         print(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Screen implementation completed")
         print(f"  Total input tokens: {input_tokens}")
-        print(f"  Total output tokens: {output_tokens}")
+        print(f"  Total output tokens: {result['total_output_tokens']}")
 
 class ExecuteWork(Phase):
     def run(self, state: State, context: Context = None) -> dict:
@@ -647,9 +671,9 @@ class ExecuteWork(Phase):
         # Process each screen
         print(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing screens with implementation agent:")
         for i, screen in enumerate(screens):
-            # if i < 5:
-            #     print(f"{Colors.BRIGHT_CYAN}=== Skipping screen {i+1}/{len(screens)} ==={Colors.END}")
-            #     continue
+            if i < 12:
+                print(f"{Colors.BRIGHT_CYAN}=== Skipping screen {i+1}/{len(screens)} ==={Colors.END}")
+                continue
             print(f"{Colors.BRIGHT_CYAN}=== Processing screen {i+1}/{len(screens)} ==={Colors.END}")
             print(f"Content preview: {screen[:100]}..." if len(screen) > 100 else f"Content: {screen}")
 
