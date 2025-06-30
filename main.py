@@ -13,7 +13,7 @@ from reconcile_integration_tests import ReconcileIntegrationTests
 from plan_screens import PlanScreens
 from plan_work import PlanWork
 from execute_work import ExecuteWork
-from phase_manager import Done, PhaseManager, Context, Start
+from phase_manager import Done, PhaseManager, Context, Init
 
 dotenv.load_dotenv()
 
@@ -32,7 +32,7 @@ def main():
     if args.incremental:
         print(f"Running in incremental mode from {args.incremental}")
         project_path = args.incremental
-        start = Start({
+        init = Init({
             "project_path": project_path,
         })
     else:
@@ -46,7 +46,7 @@ def main():
             spec = f.read()
 
         project_path = os.path.dirname(spec_file)
-        start = Start({
+        init = Init({
             "spec_file": spec_file,
             "spec": spec,
             "project_path": project_path,
@@ -57,7 +57,7 @@ def main():
 
     pm = PhaseManager(
         [
-            start,
+            init,
             ExtractEntities(),
             RefineEntities(),
             GenerateDjangoProject(),

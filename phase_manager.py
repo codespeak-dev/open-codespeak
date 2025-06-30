@@ -69,7 +69,7 @@ class Phase:
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return {}
 
-class Start(Phase):
+class Init(Phase):
     def __init__(self, initial_state: dict | None = None, state_schema: Dict[str, dict] | None = None):
         self.initial_state = initial_state or {}
         self.state_schema = state_schema or {}
