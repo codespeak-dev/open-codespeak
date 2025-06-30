@@ -52,3 +52,9 @@ Examples:
   ./dev retry ExtractEntities
   ./dev retry --project_dir test_outputs/02_lumama GenerateDjangoProject
 ```
+
+To start the server inside the app:
+
+```
+uvicorn <app_name>.asgi:app --reload
+```
