@@ -94,6 +94,7 @@ class PhaseManager:
     LAST_FAILED_PHASE = "__last_failed"
     HISTORY = "__history"
     SCHEMA = "__schema"
+    VERSION = "__version"
 
     def __init__(
             self, 
@@ -112,9 +113,7 @@ class PhaseManager:
         
         self.current_state = State(
             data=initial_state or {},
-            _internal_data={
-                self.SCHEMA: self.state_schema
-            }
+            _internal_data=self.standard_fields()
         )
 
         if os.path.exists(state_file):
@@ -138,6 +137,12 @@ class PhaseManager:
                 }
 
         return schema
+
+    def standard_fields(self):
+        return {
+                self.SCHEMA: self.state_schema,
+                self.VERSION: "0.1.0"
+            }
 
     def run_state_machine(self) -> State:
         phase_names = [phase.__class__.__name__ for phase in self.phases]
@@ -170,9 +175,7 @@ class PhaseManager:
                     ]
                 }
             
-            standard_fields = {
-                self.SCHEMA: self.state_schema,
-            }
+            standard_fields = self.standard_fields()
 
             try:
                 delta = phase.run(state, self.context)
