@@ -2,6 +2,7 @@ import shutil
 from typing import List
 import os
 import secrets
+import re
 from jinja2 import Environment, FileSystemLoader
 
 from extract_entities import Entity
@@ -29,6 +30,8 @@ def generate_django_project_from_template(project_path: str, project_name: str, 
     def render_and_write(template_path, output_path):
         template = env.get_template(template_path)
         content = template.render(context)
+        # Remove excessive consecutive newlines (3+ becomes 2)
+        content = re.sub(r'\n{3,}', '\n\n', content)
         with open(output_path, 'w') as f:
             f.write(content)
 
