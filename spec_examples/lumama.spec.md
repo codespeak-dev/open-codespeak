@@ -6,8 +6,8 @@ Lumama is a platform where users can post their events, browse existing events, 
 
 ## All users
 
-- log in with Google
-  - pre-fill user profile: name, email, avatar
+- log in
+- sign up (enter email + password, no email confirmation required, can log in straight away after sign up)
 
 ## Organiser
 
@@ -30,7 +30,7 @@ Lumama is a platform where users can post their events, browse existing events, 
 //  - send out email blasts to attendees
 //- invite attendees of a given event to another event (with an optional custom message)
 //- take donations / payments for attending an event
-//- fill in profile: name, picture, email, linkedin, description, etc
+//- fill in profile: name, email, linkedin, description, etc
 
 ## Attendee
 
@@ -45,7 +45,7 @@ Lumama is a platform where users can post their events, browse existing events, 
 //- Cancel RSVP / take themselves off a wait list
 //- Pay / donate for an event
 //- Browse all of their events
-//- Fill in profile: name, picture, email, linkedin, contacts, etc
+//- Fill in profile: name, email, linkedin, contacts, etc
 //- Post to the event's wall
 //- Follow an organiser (receive notifications of their future events)
 
