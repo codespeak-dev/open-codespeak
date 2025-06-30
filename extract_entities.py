@@ -144,61 +144,6 @@ def display_entities(entities: List[Entity]):
         for field, ftype in entity.fields.items():
             print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
 
-def get_entities_confirmation(entities: dict, original_prompt: str = "") -> Tuple[bool, dict]:
-    """
-    Ask user to confirm entities or provide feedback for changes.
-    Returns (should_proceed, final_entities)
-    """
-    current_entities = entities
-
-    while True:
-        display_entities(to_entities(current_entities))
-        print(f"\n{Colors.BOLD}Please review the extracted entities:{Colors.END}")
-
-        questions = [
-            inquirer.List(
-                'action',
-                message="What would you like to do?",
-                choices=[
-                    ('Yes, proceed with these entities', 'proceed'),
-                    ('Modify the entities', 'modify')
-                ],
-                carousel=True
-            )
-        ]
-
-        try:
-            answers = inquirer.prompt(questions)
-            if not answers:  # User pressed Ctrl+C
-                print(f"\n{Colors.BRIGHT_YELLOW}Cancelled by user{Colors.END}")
-                sys.exit(0)
-
-            action = answers['action']
-
-            if action == 'proceed':
-                return True, current_entities
-            elif action == 'modify':
-                feedback_question = [
-                    inquirer.Text(
-                        'feedback',
-                        message="What would you like to change?",
-                        validate=lambda _, x: len(x.strip()) > 0 or "Please provide feedback"
-                    )
-                ]
-
-                feedback_answers = inquirer.prompt(feedback_question)
-                if not feedback_answers:
-                    continue
-
-                feedback = feedback_answers['feedback']
-                print(f"\n{Colors.BRIGHT_CYAN}Refining entities...{Colors.END}")
-                current_entities = refine_entities(original_prompt, current_entities, feedback)
-                print(f"{Colors.BRIGHT_GREEN}Entities updated{Colors.END}\n")
-
-        except KeyboardInterrupt:
-            print(f"\n{Colors.BRIGHT_YELLOW}Cancelled by user{Colors.END}")
-            sys.exit(0)
-
 class ExtractEntities(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
@@ -208,23 +153,8 @@ class ExtractEntities(Phase):
         return {
             "entities": entities
         }
-    
+
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return {
             "entities": json_file("entities.json")
-        }
-    
-class RefineEntities(Phase):
-    def run(self, state: State, context: Context = None) -> dict:
-        spec = state["spec"]
-        entities = state["entities"]
-
-        # Get user confirmation for entities
-        should_proceed, final_entities = get_entities_confirmation(entities, spec)
-        if not should_proceed:
-            print(f"{Colors.BRIGHT_YELLOW}Project generation cancelled{Colors.END}")
-            sys.exit(0)
-
-        return {
-            "entities": final_entities
         }

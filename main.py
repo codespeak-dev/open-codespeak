@@ -4,7 +4,7 @@ import dotenv
 import sys
 from colors import Colors
 from data_serializer import text_file
-from extract_entities import ExtractEntities, RefineEntities
+from extract_entities import ExtractEntities
 from generate_django_project import GenerateDjangoProject
 from makemigrations import MakeMigrations
 from migrate import Migrate
@@ -59,7 +59,6 @@ def main():
         [
             init,
             ExtractEntities(),
-            RefineEntities(),
             GenerateDjangoProject(),
             MakeMigrations(),
             Migrate(),
