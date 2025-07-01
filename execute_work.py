@@ -6,6 +6,7 @@ import json
 import difflib
 import time
 import random
+from typing import cast
 from colors import Colors
 from phase_manager import State, Phase, Context
 from google import genai
@@ -283,10 +284,7 @@ class ImplementationAgent:
 
     def read_file(self, file_path: str, offset: int | None = None, limit: int | None = None):
         """Read contents of a file with optional offset and limit"""
-        print(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Reading file: {file_path}")
-        print(f"  Offset: {offset}, Limit: {limit}")
         full_path = os.path.join(self.project_path, file_path) if not os.path.isabs(file_path) else file_path
-        print(f"  Full path: {full_path}")
 
         try:
             lines = []
@@ -339,21 +337,22 @@ class ImplementationAgent:
 
             display_content = '\n'.join(lines)
 
-            # Create status message
+            # Create concise status message
             if offset is not None and limit is not None:
-                status_msg = f"Read {len(lines)} lines (line {offset}-{start_line + len(lines)})"
+                status_msg = f"lines {offset}-{start_line + len(lines)}"
             elif offset is not None:
-                status_msg = f"Read {len(lines)} lines (from line {offset})"
+                status_msg = f"{len(lines)} lines from {offset}"
             elif limit is not None:
-                status_msg = f"Read {len(lines)} lines (first {limit} lines)"
+                status_msg = f"first {len(lines)} lines"
             else:
-                status_msg = f"Read entire file ({len(lines)} lines)"
+                status_msg = f"{len(lines)} lines"
 
             if truncated:
                 status_msg += " [TRUNCATED]"
 
-            print(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} {status_msg}")
-            self.history.append(f"Read file: {file_path} ({status_msg})")
+            print(f"{Colors.BRIGHT_GREEN}⏺{Colors.END} Read({file_path})")
+            print(f"  ⎿  Read {status_msg}")
+            self.history.append(f"Read file: {file_path} ({len(lines)} lines)")
             return display_content
 
         except Exception as e:
@@ -543,12 +542,10 @@ class ImplementationAgent:
 
     def execute_tool_call(self, tool_name: str, tool_input: dict):
         """Execute a tool call and return the result"""
-        print(f"{Colors.BRIGHT_CYAN}[TOOL CALL]{Colors.END} Requesting to execute: {tool_name}")
-        print(f"  Input: {tool_input}")
-
         # Skip confirmation if always_yes is set
         if self.always_yes:
-            print(f"{Colors.BRIGHT_GREEN}[AUTO-CONFIRMED]{Colors.END} Executing tool (always yes mode)...")
+            # Silent execution for confirmed operations
+            pass
         else:
             # Ask for user confirmation
             print(f"{Colors.BRIGHT_YELLOW}[CONFIRMATION]{Colors.END} Do you want to execute this tool call?")
@@ -558,10 +555,9 @@ class ImplementationAgent:
             while True:
                 response = input(f"{Colors.BRIGHT_CYAN}[INPUT]{Colors.END} Proceed? (y/n/a): ").lower().strip()
                 if response in ['y', 'yes']:
-                    print(f"{Colors.BRIGHT_GREEN}[CONFIRMED]{Colors.END} Executing tool...")
                     break
                 elif response in ['a', 'always']:
-                    print(f"{Colors.BRIGHT_GREEN}[ALWAYS YES]{Colors.END} Executing tool and enabling always yes mode...")
+                    print(f"{Colors.BRIGHT_GREEN}[ALWAYS YES]{Colors.END} Enabling always yes mode...")
                     self.always_yes = True
                     break
                 elif response in ['n', 'no']:
@@ -729,9 +725,8 @@ class ImplementationAgent:
             # Execute tool calls and collect results
             tool_results = []
             for tool_call in tool_calls:
-                print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Executing tool: {tool_call.name}")
-                # Cast tool_call.input to dict for type safety
-                tool_input = dict(tool_call.input) if hasattr(tool_call.input, 'items') else tool_call.input
+                # Cast tool_call.input to dict for type safety  
+                tool_input = cast(dict, tool_call.input)
                 result = self.execute_tool_call(tool_call.name, tool_input)
 
                 tool_results.append({
@@ -740,9 +735,12 @@ class ImplementationAgent:
                     "content": json.dumps(result)
                 })
 
-                result_preview = self.truncate_for_debug(json.dumps(result))
-                print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
-                print(f"  Result: {result_preview}")
+                # Only show errors or non-read operations in detail
+                if not result['success'] or tool_call.name != 'read_file':
+                    result_preview = self.truncate_for_debug(json.dumps(result))
+                    print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
+                    if not result['success']:
+                        print(f"  Result: {result_preview}")
 
             # Add tool results to conversation
             messages.append({
@@ -838,7 +836,6 @@ class ImplementationAgent:
                 function_response_parts = []
                 for function_call_part in function_calls:
                     function_call = function_call_part.function_call
-                    print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Executing function: {function_call.name}")
 
                     # Extract function arguments
                     func_args = dict(function_call.args) if hasattr(function_call, 'args') and function_call.args else {}
@@ -852,9 +849,12 @@ class ImplementationAgent:
                         response=function_response
                     ))
 
-                    result_preview = self.truncate_for_debug(json.dumps(result))
-                    print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {function_call.name}: {'Success' if result['success'] else 'Error'}")
-                    print(f"  Result: {result_preview}")
+                    # Only show errors or non-read operations in detail
+                    if not result['success'] or function_call.name != 'read_file':
+                        result_preview = self.truncate_for_debug(json.dumps(result))
+                        print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {function_call.name}: {'Success' if result['success'] else 'Error'}")
+                        if not result['success']:
+                            print(f"  Result: {result_preview}")
 
                 # Add function responses to conversation
                 if function_response_parts:
@@ -970,6 +970,10 @@ class ExecuteWork(Phase):
         # Process each screen
         print(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing screens with implementation agent:")
         for i, screen in enumerate(screens):
+            if i < 12:
+                print(f"{Colors.BRIGHT_YELLOW}[SKIPPING]{Colors.END} Skipping screen {i+1} because it's the first 12 screens")
+                continue
+
             print(f"{Colors.BRIGHT_CYAN}=== Processing screen {i+1}/{len(screens)} ==={Colors.END}")
             print(f"Content preview: {screen[:100]}..." if len(screen) > 100 else f"Content: {screen}")
 
@@ -991,7 +995,7 @@ class ExecuteWork(Phase):
         print(f"  Provider used: {provider}")
         print(f"  Screens processed: {len(screens)}")
         print(f"  Agent history entries: {len(agent.history)}")
-        print(f"  Total duration (API): {minutes}m {seconds}s")
+        print(f"  Total duration ({provider}, API): {minutes}m {seconds}s")
         print(f"  Agent history preview:")
         for i, entry in enumerate(agent.history[-5:]):  # Show last 5 entries
             print(f"    {i+1}. {entry}")
