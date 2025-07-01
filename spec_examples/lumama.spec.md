@@ -83,6 +83,14 @@ Lumama is a platform where users can post their events, browse existing events, 
 - create new event
 - events I'm attending (switches to attendee UI)
 
+# Design
+
+Have a only minimal layout for sign in/ signup, and a default (home) layout.
+
+## Technology
+
+Use Tailwindcss and connect it from CDN.
+
 # Modules
 
 - Server
