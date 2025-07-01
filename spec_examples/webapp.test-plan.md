@@ -9,8 +9,8 @@
 - UTF8 is supported where applicable
 - basic checks are performed (empty fields, email format etc.)
 - duplicate email is not allowed (server-side check)
-- basic checks are done on the client: passwords don't match, password too short, password too simple (does not pass)
-- when successful, redirect to login page (does not pass)
+- basic checks are done on the client: passwords don't match, password too short, password too simple
+- when successful, redirect to login page
 
 # sign in
 - never disclose if email does not exist
@@ -28,11 +28,11 @@
 # all HTML pages
 - proper title
 - header shows user name
+- logout button works
     - activates sign-in enforcement
     - redirects to the front page
-- logout button works
 - back/forward work (SPA: hash-based routing, history API)
-- no extra elements on the page (does not pass)
+- no extra elements on the page
 - only one button for a task
 - common UX practices (ex: keyboard navigation)
 - HTML / CSS / JS best practices
