@@ -149,7 +149,7 @@ You have access to the following tools:
 """
 
 class ImplementationAgent:
-    def __init__(self, project_path: str, provider: str | None = None):
+    def __init__(self, project_path: str, provider: str | None = None, facts: str | None = None):
         print(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Creating ImplementationAgent")
         print(f"  Project path: {project_path}")
 
@@ -161,6 +161,7 @@ class ImplementationAgent:
         self.history = []
         self.file_state_cache = {}  # Track read files for validation
         self.always_yes = False  # Track if user chose "always yes"
+        self.facts = facts
 
         # Initialize clients based on provider
         if self.provider == 'anthropic':
@@ -901,6 +902,9 @@ class ImplementationAgent:
 <context name="project_structure">
 {directory_tree}
 </context>
+<context name="general_facts">
+{self.facts}
+</context>
 <context name="models" path="web/models.py">
 {models_content}
 </context>
@@ -935,6 +939,7 @@ class ExecuteWork(Phase):
 
         work = state["work"]
         project_path = state["project_path"]
+        facts = state["facts"]
 
         # Get AI provider from environment or default to anthropic
         provider = os.getenv('AI_PROVIDER', 'anthropic').lower()
@@ -971,7 +976,7 @@ class ExecuteWork(Phase):
 
         # Create implementation agent with provider support
         print(f"{Colors.BRIGHT_YELLOW}[AGENT]{Colors.END} Creating implementation agent with provider: {provider}")
-        agent = ImplementationAgent(project_path, provider=provider)
+        agent = ImplementationAgent(project_path, provider=provider, facts=facts)
 
         # Initialize API duration tracking
         total_api_duration = 0.0

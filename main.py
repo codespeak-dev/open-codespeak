@@ -13,6 +13,7 @@ from generate_integration_tests import GenerateIntegrationTests
 from reconcile_integration_tests import ReconcileIntegrationTests
 from plan_screens import PlanScreens
 from extract_layouts import ExtractLayouts
+from extract_facts import ExtractFacts
 from execute_layouts import ExecuteLayouts
 from plan_work import PlanWork
 from execute_work import ExecuteWork
@@ -48,7 +49,7 @@ def main():
         spec_file = args.filepath
         with open(spec_file, 'r') as f:
             raw_spec = f.read()
-        
+
         spec_processor = SpecProcessor()
         spec = spec_processor.process(raw_spec)
 
@@ -72,6 +73,7 @@ def main():
             GenerateIntegrationTests(),
             ReconcileIntegrationTests(),
             PlanScreens(),
+            ExtractFacts(),
             ExtractLayouts(),
             PlanWork(),
             ExecuteLayouts(),
