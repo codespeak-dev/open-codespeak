@@ -625,14 +625,8 @@ class ImplementationAgent:
         for attempt in range(max_retries):
             try:
                 return func()
-            except anthropic.APIStatusError as e:
-                # Check if this is an overloaded error or rate limit
-                if hasattr(e, 'response') and hasattr(e.response, 'json'):
-                    error_type = e.response.json().get('error', {}).get('type', '')
-                else:
-                    error_type = str(e)
-
-                if 'overloaded' in error_type.lower() or 'rate_limit' in error_type.lower() or e.status_code in [429, 529]:
+            except Exception as e:
+                if self.should_retry(e):
                     if attempt < max_retries - 1:  # Don't sleep on last attempt
                         # Calculate delay with exponential backoff and jitter
                         delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
@@ -641,12 +635,23 @@ class ImplementationAgent:
                         continue
                 # Re-raise non-retryable errors or if we've exhausted retries
                 raise
-            except Exception as e:
-                # For non-Anthropic exceptions, don't retry - just re-raise
-                raise
 
         # If we get here, we've exhausted all retries
         raise Exception(f"Max retries ({max_retries}) exceeded for API call")
+
+    def should_retry(self, e) -> bool:
+        """Determine if an exception is retryable."""
+        import httpx
+        if isinstance(e, (httpx.ReadTimeout, httpx.ConnectTimeout)):
+            return True
+        if isinstance(e, anthropic.APIStatusError):
+            if hasattr(e, 'response') and hasattr(e.response, 'json'):
+                error_type = e.response.json().get('error', {}).get('type', '')
+            else:
+                error_type = str(e)
+            if 'overloaded' in error_type.lower() or 'rate_limit' in error_type.lower() or getattr(e, 'status_code', None) in [429, 529]:
+                return True
+        return False
 
     def run_streaming_conversation(self, messages: list) -> dict:
         """Run a conversation with the selected provider until completion"""
@@ -970,10 +975,6 @@ class ExecuteWork(Phase):
         # Process each screen
         print(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing screens with implementation agent:")
         for i, screen in enumerate(screens):
-            if i < 12:
-                print(f"{Colors.BRIGHT_YELLOW}[SKIPPING]{Colors.END} Skipping screen {i+1} because it's the first 12 screens")
-                continue
-
             print(f"{Colors.BRIGHT_CYAN}=== Processing screen {i+1}/{len(screens)} ==={Colors.END}")
             print(f"Content preview: {screen[:100]}..." if len(screen) > 100 else f"Content: {screen}")
 
