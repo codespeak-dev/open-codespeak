@@ -43,6 +43,8 @@ def main():
         project_path = args.incremental
         init = Init({
             "project_path": project_path,
+        }, {
+            "spec": text_file("spec.md"),
         })
     else:
         if not args.filepath:
