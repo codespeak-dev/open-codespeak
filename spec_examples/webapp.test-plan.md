@@ -13,7 +13,7 @@
 - when successful, redirect to login page (does not pass)
 
 # sign in
-- missing email is not disclosed
+- never disclose if email does not exist
 - wrong email/password combination does not work
 - ban / captcha after multiple failed sign in attempts
 
