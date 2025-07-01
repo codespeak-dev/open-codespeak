@@ -57,6 +57,8 @@ def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
     return response_text.strip()
 
 class PlanWork(Phase):
+    description = "Generate the work to be executed (work.txt)"
+
     def run(self, state: State, context: Context | None = None) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]

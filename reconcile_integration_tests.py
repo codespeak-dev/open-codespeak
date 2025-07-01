@@ -324,6 +324,8 @@ Please use the tools to analyze the project structure, identify what's causing t
 
 
 class ReconcileIntegrationTests(Phase):
+    description = "Fix failing integration tests"
+
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
         test_file_path = state["integration_test_path"]

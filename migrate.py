@@ -4,8 +4,9 @@ import sys
 from phase_manager import State, Phase, Context
 from with_step import with_step
 
-
 class Migrate(Phase):
+    description = "Run database migrations"
+
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 

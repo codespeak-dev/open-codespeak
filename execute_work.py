@@ -934,6 +934,8 @@ class ImplementationAgent:
         return result
 
 class ExecuteWork(Phase):
+    description = "Execute the planned work items"
+
     def run(self, state: State, context: Context | None = None) -> dict:
         print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK PHASE STARTED ==={Colors.END}")
 

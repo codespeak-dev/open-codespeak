@@ -80,6 +80,8 @@ def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
     return applied_fixes
 
 class MakeMigrations(Phase):
+    description = "Create Django database migrations"
+
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 

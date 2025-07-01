@@ -66,6 +66,8 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
 
 
 class GenerateIntegrationTests(Phase):
+    description = "Generates integration tests for the Django project"
+
     def run(self, state: State, context: Context = None) -> dict:
         project_path = state["project_path"]
 

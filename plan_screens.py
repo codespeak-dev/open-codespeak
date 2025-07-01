@@ -67,6 +67,8 @@ def read_models_file(project_path: str) -> str:
         return f.read()
 
 class PlanScreens(Phase):
+    description = "Generate a set of UI screens to implement (stories.txt)"
+
     def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]

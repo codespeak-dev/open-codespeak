@@ -93,6 +93,8 @@ def display_entities(entities: List[Entity]):
             print(f"      {Colors.BRIGHT_YELLOW}{field}{Colors.END}: {ftype}")
 
 class ExtractEntities(Phase):
+    description = "Extract data entities from the specification"
+
     def run(self, state: State, context: Context = None) -> dict:
         spec = state["spec"]
 

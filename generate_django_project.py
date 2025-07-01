@@ -51,6 +51,8 @@ def generate_django_project_from_template(project_path: str, project_name: str, 
         render_and_write(template_path, output_path)
 
 class GenerateDjangoProject(Phase):
+    description = "Create a new Django project"
+    
     def run(self, state: State, context: Context = None) -> dict:
         project_name = state["project_name"]
         project_path = state["project_path"]
