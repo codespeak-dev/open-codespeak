@@ -3,8 +3,11 @@ import os
 import re
 import json
 import difflib
+import time
 from colors import Colors
 from phase_manager import State, Phase, Context
+from google import genai
+from google.genai import types as gemini_types
 
 # Tool definitions constant for reuse
 TOOLS_DEFINITIONS = [
@@ -127,7 +130,7 @@ Your task is to implement each screen by:
 For each screen, parse the name, URL pattern, description and actions.
 Create clean, functional Django code that follows best practices.
 
-Always use the available tools to read existing files, create new files, and edit existing files.
+Follow the same style and structure as the existing code.
 
 ## Available Tools
 
@@ -143,14 +146,33 @@ You have access to the following tools:
 """
 
 class ImplementationAgent:
-    def __init__(self, project_path: str):
+    def __init__(self, project_path: str, provider: str | None = None):
         print(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Creating ImplementationAgent")
         print(f"  Project path: {project_path}")
+
+        # Determine provider (env var or parameter)
+        self.provider = provider or os.getenv('AI_PROVIDER', 'anthropic').lower()
+        print(f"  Provider: {self.provider}")
+
         self.project_path = project_path
         self.history = []
-        self.client = anthropic.Anthropic()
         self.file_state_cache = {}  # Track read files for validation
         self.always_yes = False  # Track if user chose "always yes"
+
+        # Initialize clients based on provider
+        if self.provider == 'anthropic':
+            self.anthropic_client = anthropic.Anthropic()
+            print(f"  Anthropic client initialized")
+        elif self.provider == 'gemini':
+            # Initialize Gemini client
+            api_key = os.getenv('GEMINI_API_KEY')
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY environment variable required for Gemini")
+            self.gemini_client = genai.Client(api_key=api_key)
+            print(f"  Gemini client initialized")
+        else:
+            raise ValueError(f"Unsupported provider: {self.provider}. Use 'anthropic' or 'gemini'")
+
         print(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Agent initialized successfully")
 
     def truncate_for_debug(self, content: str, max_length: int = 500) -> str:
@@ -160,6 +182,15 @@ class ImplementationAgent:
         return str(content)
 
     def get_tools_schema(self):
+        """Get the tools schema for the current provider"""
+        if self.provider == 'anthropic':
+            return self.get_anthropic_tools_schema()
+        elif self.provider == 'gemini':
+            return self.get_gemini_tools_schema()
+        else:
+            raise ValueError(f"Unsupported provider: {self.provider}")
+
+    def get_anthropic_tools_schema(self):
         """Get the tools schema for the Anthropic API"""
         # Return only the schema fields needed for Anthropic API (exclude the 'prompt' field)
         return [
@@ -170,6 +201,68 @@ class ImplementationAgent:
             }
             for tool in TOOLS_DEFINITIONS
         ]
+
+    def get_gemini_tools_schema(self):
+        """Get the tools schema for the Gemini API"""
+        function_declarations = []
+
+        for tool in TOOLS_DEFINITIONS:
+            # Use custom description and schema for edit_file tool in Gemini
+            if tool["name"] == "edit_file":
+                # Custom Gemini-specific edit_file definition
+                properties = {
+                    "file_path": gemini_types.Schema(
+                        type=gemini_types.Type.STRING,
+                        description="Path to the file to edit"
+                    ),
+                    "old_string": gemini_types.Schema(
+                        type=gemini_types.Type.STRING,
+                        description="The exact literal text to replace, preferably unescaped. For single replacements (default), include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. For multiple replacements, specify expected_replacements parameter. If this string is not the exact literal text (i.e. you escaped it) or does not match exactly, the tool will fail."
+                    ),
+                    "new_string": gemini_types.Schema(
+                        type=gemini_types.Type.STRING,
+                        description="The exact literal text to replace `old_string` with, preferably unescaped. Provide the EXACT text. Ensure the resulting code is correct and idiomatic."
+                    ),
+                    "expected_replacements": gemini_types.Schema(
+                        type=gemini_types.Type.INTEGER,
+                        description="Number of replacements expected. Defaults to 1 if not specified. Use when you want to replace multiple occurrences."
+                    )
+                }
+
+                function_decl = gemini_types.FunctionDeclaration(
+                    name="edit_file",
+                    description="Replaces text within a file. By default, replaces a single occurrence, but can replace multiple occurrences when `expected_replacements` is specified. This tool requires providing significant context around the change to ensure precise targeting. Always use the read_file tool to examine the file's current content before attempting a text replacement.\n\nThe user has the ability to modify the `new_string` content. If modified, this will be stated in the response.\n\nExpectation for required parameters:\n1. `file_path` MUST be an absolute path; otherwise an error will be thrown.\n2. `old_string` MUST be the exact literal text to replace (including all whitespace, indentation, newlines, and surrounding code etc.).\n3. `new_string` MUST be the exact literal text to replace `old_string` with (also including all whitespace, indentation, newlines, and surrounding code etc.). Ensure the resulting code is correct and idiomatic.\n4. NEVER escape `old_string` or `new_string`, that would break the exact literal text requirement.\n**Important:** If ANY of the above are not satisfied, the tool will fail. CRITICAL for `old_string`: Must uniquely identify the single instance to change. Include at least 3 lines of context BEFORE and AFTER the target text, matching whitespace and indentation precisely. If this string matches multiple locations, or does not match exactly, the tool will fail.\n**Multiple replacements:** Set `expected_replacements` to the number of occurrences you want to replace. The tool will replace ALL occurrences that match `old_string` exactly. Ensure the number of replacements matches your expectation.",
+                    parameters=gemini_types.Schema(
+                        type=gemini_types.Type.OBJECT,
+                        properties=properties,
+                        required=["file_path", "old_string", "new_string"]
+                    )
+                )
+            else:
+                # Convert standard tool definition to Gemini format
+                properties = {}
+                required = tool["input_schema"].get("required", [])
+
+                for prop_name, prop_def in tool["input_schema"]["properties"].items():
+                    gemini_prop = gemini_types.Schema(
+                        type=gemini_types.Type.STRING if prop_def["type"] == "string" else gemini_types.Type.INTEGER,
+                        description=prop_def.get("description", "")
+                    )
+                    properties[prop_name] = gemini_prop
+
+                function_decl = gemini_types.FunctionDeclaration(
+                    name=tool["name"],
+                    description=tool["description"],
+                    parameters=gemini_types.Schema(
+                        type=gemini_types.Type.OBJECT,
+                        properties=properties,
+                        required=required
+                    )
+                )
+
+            function_declarations.append(function_decl)
+
+        return [gemini_types.Tool(function_declarations=function_declarations)]
 
     def list_files(self, path: str):
         """List files in a directory"""
@@ -202,6 +295,10 @@ class ImplementationAgent:
 
             with open(full_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+
+            # Normalize line endings to LF for consistent processing (Gemini provider)
+            if self.provider == 'gemini':
+                content = content.replace('\r\n', '\n')
 
             # Store in cache for edit validation
             file_stats = os.stat(full_path)
@@ -511,8 +608,18 @@ class ImplementationAgent:
         return tree
 
     def run_streaming_conversation(self, messages: list) -> dict:
+        """Run a conversation with the selected provider until completion"""
+        if self.provider == 'anthropic':
+            return self.run_anthropic_conversation(messages)
+        elif self.provider == 'gemini':
+            return self.run_gemini_conversation(messages)
+        else:
+            raise ValueError(f"Unsupported provider: {self.provider}")
+
+    def run_anthropic_conversation(self, messages: list) -> dict:
         """Run a streaming conversation with Claude until completion"""
         output_tokens = 0
+        total_api_duration = 0.0
 
         # Continue conversation until no more tool calls
         while True:
@@ -524,13 +631,16 @@ class ImplementationAgent:
 
             print(f"{Colors.BRIGHT_MAGENTA}[AI STREAMING]{Colors.END} Starting streaming response...")
 
+            # Track API call duration
+            api_start_time = time.time()
+
             # Use the streaming helper for cleaner code
-            with self.client.messages.stream(
+            with self.anthropic_client.messages.stream(
                 model="claude-sonnet-4-20250514",
                 max_tokens=10000,
                 temperature=0,
                 system=IMPLEMENTATION_SYSTEM_PROMPT,
-                tools=self.get_tools_schema(),
+                tools=self.get_anthropic_tools_schema(),
                 messages=messages
             ) as stream:
                 print(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
@@ -544,8 +654,13 @@ class ImplementationAgent:
                 # Get the final message with all content blocks
                 final_message = stream.get_final_message()
 
+            api_end_time = time.time()
+            api_call_duration = api_end_time - api_start_time
+            total_api_duration += api_call_duration
+
             print(f"{Colors.BRIGHT_MAGENTA}[AI RESPONSE]{Colors.END} Streaming completed")
             print(f"  Output tokens: {final_message.usage.output_tokens}")
+            print(f"  API call duration: {api_call_duration:.2f}s")
             output_tokens += final_message.usage.output_tokens
 
             # Add assistant message to conversation  
@@ -567,7 +682,9 @@ class ImplementationAgent:
             tool_results = []
             for tool_call in tool_calls:
                 print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Executing tool: {tool_call.name}")
-                result = self.execute_tool_call(tool_call.name, tool_call.input)
+                # Cast tool_call.input to dict for type safety
+                tool_input = dict(tool_call.input) if hasattr(tool_call.input, 'items') else tool_call.input
+                result = self.execute_tool_call(tool_call.name, tool_input)
 
                 tool_results.append({
                     "type": "tool_result",
@@ -587,7 +704,122 @@ class ImplementationAgent:
 
         return {
             "messages": messages,
-            "total_output_tokens": output_tokens
+            "total_output_tokens": output_tokens,
+            "total_api_duration": total_api_duration
+        }
+
+    def run_gemini_conversation(self, messages: list) -> dict:
+        """Run a conversation with Gemini until completion"""
+        output_tokens = 0
+        total_api_duration = 0.0
+        gemini_contents = []
+
+        # Convert messages to Gemini format
+        for message in messages:
+            if message['role'] == 'user':
+                if isinstance(message['content'], str):
+                    gemini_contents.append(gemini_types.Content(
+                        role='user',
+                        parts=[gemini_types.Part.from_text(text=message['content'])]
+                    ))
+                # Handle tool results
+                elif isinstance(message['content'], list):
+                    tool_parts = []
+                    for content_item in message['content']:
+                        if content_item.get('type') == 'tool_result':
+                            tool_parts.append(gemini_types.Part.from_function_response(
+                                name=content_item.get('tool_use_id', 'unknown'),
+                                response=json.loads(content_item['content'])
+                            ))
+                    if tool_parts:
+                        gemini_contents.append(gemini_types.Content(role='tool', parts=tool_parts))
+
+        # Continue conversation until no more tool calls
+        while True:
+            print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Gemini with {len(gemini_contents)} messages")
+
+            try:
+                # Track API call duration
+                api_start_time = time.time()
+
+                response = self.gemini_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=gemini_contents,
+                    config=gemini_types.GenerateContentConfig(
+                        tools=self.get_gemini_tools_schema(),
+                    ),
+                )
+
+                api_end_time = time.time()
+                api_call_duration = api_end_time - api_start_time
+                total_api_duration += api_call_duration
+
+                print(f"{Colors.BRIGHT_GREEN}[AI RESPONSE]{Colors.END} Gemini response received")
+                print(f"  API call duration: {api_call_duration:.2f}s")
+
+                # Add assistant response to conversation
+                if response.candidates and response.candidates[0].content:
+                    gemini_contents.append(response.candidates[0].content)
+
+                # Process response parts (text and function calls)
+                function_calls = []
+                text_parts = []
+
+                if (response.candidates and 
+                    response.candidates[0].content and 
+                    response.candidates[0].content.parts):
+                    for part in response.candidates[0].content.parts:
+                        print(f"Part: {part}")
+                        if hasattr(part, 'function_call') and part.function_call:
+                            function_calls.append(part)
+                        elif hasattr(part, 'text') and part.text:
+                            text_parts.append(part.text)
+
+                # Print any text content
+                if text_parts:
+                    combined_text = ''.join(text_parts)
+                    print(f"{Colors.GREY}{combined_text}{Colors.END}")
+
+                if not function_calls:
+                    print(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more function calls, conversation complete")
+                    break
+
+                print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(function_calls)} function calls")
+
+                # Execute function calls and collect results
+                function_response_parts = []
+                for function_call_part in function_calls:
+                    function_call = function_call_part.function_call
+                    print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Executing function: {function_call.name}")
+
+                    # Extract function arguments
+                    func_args = dict(function_call.args) if hasattr(function_call, 'args') and function_call.args else {}
+                    result = self.execute_tool_call(function_call.name, func_args)
+
+                    # Create function response
+                    function_response = {'result': result} if result['success'] else {'error': result.get('error', 'Unknown error')}
+
+                    function_response_parts.append(gemini_types.Part.from_function_response(
+                        name=function_call.name,
+                        response=function_response
+                    ))
+
+                    result_preview = self.truncate_for_debug(json.dumps(result))
+                    print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {function_call.name}: {'Success' if result['success'] else 'Error'}")
+                    print(f"  Result: {result_preview}")
+
+                # Add function responses to conversation
+                if function_response_parts:
+                    gemini_contents.append(gemini_types.Content(role='tool', parts=function_response_parts))
+
+            except Exception as e:
+                print(f"{Colors.BRIGHT_RED}[ERROR]{Colors.END} Gemini API error: {e}")
+                break
+
+        return {
+            "messages": gemini_contents,
+            "total_output_tokens": output_tokens,
+            "total_api_duration": total_api_duration
         }
 
     def implement_screen(self, screen_text: str):
@@ -636,13 +868,29 @@ class ImplementationAgent:
         print(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Screen implementation completed")
         print(f"  Total input tokens: {input_tokens}")
         print(f"  Total output tokens: {result['total_output_tokens']}")
+        print(f"  Total API duration: {result.get('total_api_duration', 0):.2f}s")
+
+        return result
 
 class ExecuteWork(Phase):
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Context | None = None) -> dict:
         print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK PHASE STARTED ==={Colors.END}")
 
         work = state["work"]
         project_path = state["project_path"]
+
+        # Get AI provider from environment or default to anthropic
+        provider = os.getenv('AI_PROVIDER', 'anthropic').lower()
+        print(f"{Colors.BRIGHT_CYAN}[PROVIDER]{Colors.END} Using AI provider: {provider}")
+
+        if provider == 'gemini':
+            print(f"{Colors.BRIGHT_CYAN}[PROVIDER]{Colors.END} Gemini setup:")
+            print(f"  Make sure you have: pip install google-genai")
+            print(f"  Set environment variable: GOOGLE_API_KEY=your_api_key")
+        elif provider == 'anthropic':
+            print(f"{Colors.BRIGHT_CYAN}[PROVIDER]{Colors.END} Anthropic setup:")
+            print(f"  Make sure you have: pip install anthropic")
+            print(f"  Set environment variable: ANTHROPIC_API_KEY=your_api_key")
 
         # Parse work into an array by extracting content between <screen> tags
         print(f"{Colors.BRIGHT_CYAN}[PARSING]{Colors.END} Parsing screens from work content...")
@@ -664,9 +912,12 @@ class ExecuteWork(Phase):
             print(f"  Preview: {screen[:100]}..." if len(screen) > 100 else f"  Content: {screen}")
             print("-" * 40)
 
-        # Create implementation agent
-        print(f"{Colors.BRIGHT_YELLOW}[AGENT]{Colors.END} Creating implementation agent...")
-        agent = ImplementationAgent(project_path)
+        # Create implementation agent with provider support
+        print(f"{Colors.BRIGHT_YELLOW}[AGENT]{Colors.END} Creating implementation agent with provider: {provider}")
+        agent = ImplementationAgent(project_path, provider=provider)
+
+        # Initialize API duration tracking
+        total_api_duration = 0.0
 
         # Process each screen
         print(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing screens with implementation agent:")
@@ -678,20 +929,31 @@ class ExecuteWork(Phase):
             print(f"Content preview: {screen[:100]}..." if len(screen) > 100 else f"Content: {screen}")
 
             # Implement the screen
-            agent.implement_screen(screen)
+            result = agent.implement_screen(screen)
+            screen_api_duration = result.get('total_api_duration', 0)
+            total_api_duration += screen_api_duration
+
             print(f"{Colors.BRIGHT_GREEN}[PROCESSING]{Colors.END} Screen {i+1} processing completed")
             print(f"  Agent history entries so far: {len(agent.history)}")
             print()
 
+        # Format duration for display
+        minutes = int(total_api_duration // 60)
+        seconds = int(total_api_duration % 60)
+
         print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK PHASE COMPLETED ==={Colors.END}")
         print(f"{Colors.BRIGHT_YELLOW}[SUMMARY]{Colors.END} Final summary:")
+        print(f"  Provider used: {provider}")
         print(f"  Screens processed: {len(screens)}")
         print(f"  Agent history entries: {len(agent.history)}")
+        print(f"  Total duration (API): {minutes}m {seconds}s")
         print(f"  Agent history preview:")
         for i, entry in enumerate(agent.history[-5:]):  # Show last 5 entries
             print(f"    {i+1}. {entry}")
 
         return {
+            "provider": provider,
             "screens": screens,
-            "implementation_history": agent.history
+            "implementation_history": agent.history,
+            "total_api_duration": total_api_duration
         }
