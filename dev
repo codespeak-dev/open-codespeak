@@ -77,9 +77,19 @@ new_project() {
     
     # Create project directory
     mkdir -p "$project_dir"
+
+    # Initialize a git repository in the new project directory
+    git init "$project_dir"
     
     # Copy spec file
     cp "$specfile" "$project_dir/spec.md"
+
+    # Add and commit the copied spec file to git
+    (
+        cd "$project_dir"
+        git add spec.md
+        git commit -m "Add spec.md" -m "Initial spec file for project" --author="Codespeak <gen@codespeak.dev>"
+    )
     
     # Set as current project
     set_current_project "$project_dir"

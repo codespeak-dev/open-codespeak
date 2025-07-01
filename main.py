@@ -19,10 +19,14 @@ from plan_work import PlanWork
 from execute_work import ExecuteWork
 from phase_manager import Done, PhaseManager, Context, Init
 from spec_processor import SpecProcessor
+from git_helper import GitHelper
 
 dotenv.load_dotenv()
 
 def main():
+    # Log the full invocation command line
+    print(f"{Colors.BRIGHT_YELLOW}Invocation:{Colors.END} {' '.join([os.path.basename(sys.argv[0])] + sys.argv[1:])}")
+
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
     parser.prog = 'codespeak'
     parser.add_argument('filepath', nargs='?', help='Path to the input file (required when not in incremental mode)')
@@ -58,10 +62,13 @@ def main():
             "spec_file": spec_file,
             "spec": spec,
             "project_path": project_path,
-            "project_name": os.path.basename(project_path),            
+            "project_name": os.path.basename(project_path),
         }, {
             "spec": text_file("spec.md"),
         })
+
+    git_helper = GitHelper(project_path)
+    context = Context(git_helper=git_helper, verbose=args.verbose)
 
     pm = PhaseManager(
         [
@@ -81,9 +88,19 @@ def main():
             Done(),
         ], 
         state_file=Path(project_path) / "codespeak_state.json",
-        context=Context(verbose=args.verbose),
+        context=context,
         start_from=args.start
     )
+    
+    if args.start:
+        git_helper.ensure_clean_working_tree()
+        respective_commit_hash = git_helper.find_commit_hash_by_message(args.start)
+        if not respective_commit_hash:
+            print(f"Can't restore to the phase '{args.start}' because no commit was found for that phase.")
+            return
+        
+        print(f"Restoring to the commit hash {respective_commit_hash} for the phase '{args.start}'")
+        git_helper.restore(respective_commit_hash)
 
     state = pm.run_state_machine()
 
