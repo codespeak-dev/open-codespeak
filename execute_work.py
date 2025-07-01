@@ -37,13 +37,11 @@ TOOLS_DEFINITIONS = [
                 },
                 "offset": {
                     "type": "integer",
-                    "description": "Starting line number (1-based, default: 1)",
-                    "default": 1
+                    "description": "Optional: starting line number (1-based)"
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of lines to read (default: 1000)",
-                    "default": 1000
+                    "description": "Optional: Maximum number of lines to read"
                 }
             },
             "required": ["file_path"]
@@ -281,7 +279,7 @@ class ImplementationAgent:
             self.history.append(error_msg)
             return []
 
-    def read_file(self, file_path: str, offset: int = 1, limit: int = 1000):
+    def read_file(self, file_path: str, offset: int | None = None, limit: int | None = None):
         """Read contents of a file with optional offset and limit"""
         print(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Reading file: {file_path}")
         print(f"  Offset: {offset}, Limit: {limit}")
@@ -309,17 +307,20 @@ class ImplementationAgent:
             }
 
             # Process lines for display
-            for line in content.splitlines():
-                line_number += 1
+            all_lines = content.splitlines()
 
-                # Skip lines before offset
-                if line_number < offset:
-                    continue
+            # Determine which lines to process
+            start_line = (offset - 1) if offset is not None else 0
+            end_line = len(all_lines)
 
-                # Check if we've reached the limit
-                if len(lines) >= limit:
-                    truncated = True
-                    break
+            if limit is not None and offset is not None:
+                end_line = min(len(all_lines), start_line + limit)
+            elif limit is not None and offset is None:
+                end_line = min(len(all_lines), limit)
+
+            for i in range(start_line, end_line):
+                line = all_lines[i]
+                line_number = i + 1
 
                 # Truncate long lines
                 line_content = line
@@ -330,8 +331,22 @@ class ImplementationAgent:
                 formatted_line = f"{line_number}\t{line_content}"
                 lines.append(formatted_line)
 
+            # Check if we truncated due to limit
+            if limit is not None and len(all_lines) > end_line:
+                truncated = True
+
             display_content = '\n'.join(lines)
-            status_msg = f"Read {len(lines)} lines (line {offset}-{offset + len(lines) - 1})"
+
+            # Create status message
+            if offset is not None and limit is not None:
+                status_msg = f"Read {len(lines)} lines (line {offset}-{start_line + len(lines)})"
+            elif offset is not None:
+                status_msg = f"Read {len(lines)} lines (from line {offset})"
+            elif limit is not None:
+                status_msg = f"Read {len(lines)} lines (first {limit} lines)"
+            else:
+                status_msg = f"Read entire file ({len(lines)} lines)"
+
             if truncated:
                 status_msg += " [TRUNCATED]"
 
@@ -558,8 +573,8 @@ class ImplementationAgent:
                 result = self.list_files(tool_input["path"])
                 return {"success": True, "result": result}
             elif tool_name == "read_file":
-                offset = tool_input.get("offset", 1)
-                limit = tool_input.get("limit", 1000)
+                offset = tool_input.get("offset")
+                limit = tool_input.get("limit")
                 result = self.read_file(tool_input["file_path"], offset, limit)
                 return {"success": True, "result": result}
             elif tool_name == "edit_file":
@@ -796,8 +811,8 @@ class ImplementationAgent:
                     func_args = dict(function_call.args) if hasattr(function_call, 'args') and function_call.args else {}
                     result = self.execute_tool_call(function_call.name, func_args)
 
-                    # Create function response
-                    function_response = {'result': result} if result['success'] else {'error': result.get('error', 'Unknown error')}
+                    # Create function response - use the result directly
+                    function_response = result
 
                     function_response_parts.append(gemini_types.Part.from_function_response(
                         name=function_call.name,
@@ -953,7 +968,7 @@ class ExecuteWork(Phase):
 
         return {
             "provider": provider,
-            "screens": screens,
-            "implementation_history": agent.history,
+            # "screens": screens,
+            # "implementation_history": agent.history,
             "total_api_duration": total_api_duration
         }
