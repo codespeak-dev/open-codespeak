@@ -14,8 +14,8 @@ get_next_number() {
     for dir in "$TEST_OUTPUTS_DIR"/[0-9][0-9]_*; do
         if [[ -d "$dir" ]]; then
             local num=$(basename "$dir" | cut -d'_' -f1)
-            if [[ "$num" =~ ^[0-9]+$ ]] && [ "$num" -gt "$max_num" ]; then
-                max_num=$num
+            if [[ "$num" =~ ^[0-9]+$ ]] && [ "$((10#$num))" -gt "$max_num" ]; then
+                max_num=$((10#$num))
             fi
         fi
     done
