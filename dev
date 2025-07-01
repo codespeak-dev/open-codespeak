@@ -84,9 +84,14 @@ new_project() {
     # Copy spec file
     cp "$specfile" "$project_dir/spec.md"
 
-    # Add and commit the copied spec file to git
+    # First commits
     (
         cd "$project_dir"
+
+        # Do not start history with actual commit with the spec, as it makes it harder to rebase onto it. Instead, create an empty commit.
+        git commit -m "Initial commit" --author="Codespeak <gen@codespeak.dev>" --allow-empty
+
+        # Commit the copied spec file to git
         git add spec.md
         git commit -m "Add spec.md" -m "Initial spec file for project" --author="Codespeak <gen@codespeak.dev>"
     )
