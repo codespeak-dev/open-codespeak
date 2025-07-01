@@ -5,6 +5,7 @@ import re
 import json
 import difflib
 import time
+import random
 from colors import Colors
 from phase_manager import State, Phase, Context
 from google import genai
@@ -623,6 +624,34 @@ class ImplementationAgent:
 
         return tree
 
+    def retry_with_backoff(self, func, max_retries=5, base_delay=1.0, max_delay=60.0):
+        """Retry a function with exponential backoff for Anthropic API rate limiting/overload"""
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except anthropic.APIStatusError as e:
+                # Check if this is an overloaded error or rate limit
+                if hasattr(e, 'response') and hasattr(e.response, 'json'):
+                    error_type = e.response.json().get('error', {}).get('type', '')
+                else:
+                    error_type = str(e)
+
+                if 'overloaded' in error_type.lower() or 'rate_limit' in error_type.lower() or e.status_code in [429, 529]:
+                    if attempt < max_retries - 1:  # Don't sleep on last attempt
+                        # Calculate delay with exponential backoff and jitter
+                        delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+                        print(f"{Colors.BRIGHT_YELLOW}[RETRY]{Colors.END} API overloaded (attempt {attempt + 1}/{max_retries}), retrying in {delay:.2f}s...")
+                        time.sleep(delay)
+                        continue
+                # Re-raise non-retryable errors or if we've exhausted retries
+                raise
+            except Exception as e:
+                # For non-Anthropic exceptions, don't retry - just re-raise
+                raise
+
+        # If we get here, we've exhausted all retries
+        raise Exception(f"Max retries ({max_retries}) exceeded for API call")
+
     def run_streaming_conversation(self, messages: list) -> dict:
         """Run a conversation with the selected provider until completion"""
         if self.provider == 'anthropic':
@@ -650,25 +679,28 @@ class ImplementationAgent:
             # Track API call duration
             api_start_time = time.time()
 
-            # Use the streaming helper for cleaner code
-            with self.anthropic_client.messages.stream(
-                model="claude-sonnet-4-20250514",
-                max_tokens=10000,
-                temperature=0,
-                system=IMPLEMENTATION_SYSTEM_PROMPT,
-                tools=self.get_anthropic_tools_schema(),
-                messages=messages
-            ) as stream:
-                print(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
+            # Use the streaming helper for cleaner code with retry logic
+            def make_streaming_request():
+                with self.anthropic_client.messages.stream(
+                    model="claude-sonnet-4-20250514", 
+                    max_tokens=10000,
+                    temperature=0,
+                    system=IMPLEMENTATION_SYSTEM_PROMPT,
+                    tools=self.get_anthropic_tools_schema(),
+                    messages=messages
+                ) as stream:
+                    print(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
 
-                # Stream text as it arrives
-                for text in stream.text_stream:
-                    print(f"{Colors.GREY}{text}{Colors.END}", end="", flush=True)
+                    # Stream text as it arrives
+                    for text in stream.text_stream:
+                        print(f"{Colors.GREY}{text}{Colors.END}", end="", flush=True)
 
-                print()  # New line after streaming text
+                    print()  # New line after streaming text
 
-                # Get the final message with all content blocks
-                final_message = stream.get_final_message()
+                    # Get the final message with all content blocks
+                    return stream.get_final_message()
+
+            final_message = self.retry_with_backoff(make_streaming_request)
 
             api_end_time = time.time()
             api_call_duration = api_end_time - api_start_time
