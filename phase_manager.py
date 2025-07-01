@@ -13,7 +13,7 @@ class Context:
         self.verbose = verbose
 
 class State:
-    def __init__(self, data: dict = None, _internal_data: dict = None):
+    def __init__(self, data: dict | None = None, _internal_data: dict | None = None):
         self._data = data or {}
         self._internal_data = _internal_data or {}
 
@@ -28,7 +28,7 @@ class State:
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
 
-    def clone(self, delta: dict = None) -> "State":
+    def clone(self, delta: dict | None = None) -> "State":
         return self.__class__(
             data={
                 **deepcopy(self._data), 
@@ -37,7 +37,7 @@ class State:
             _internal_data=deepcopy(self._internal_data)
         )
     
-    def _clone_internal(self, internal_delta: dict = None) -> "State":
+    def _clone_internal(self, internal_delta: dict | None = None) -> "State":
         return self.__class__(
             data=deepcopy(self._data),
             _internal_data={
@@ -60,10 +60,10 @@ class Phase:
         pass
 
     @abstractmethod
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Context | None = None) -> dict:
         pass
 
-    def cleanup(self, state: State, context: Context = None):
+    def cleanup(self, state: State, context: Context | None = None):
         pass
 
     def get_state_schema_entries(self) -> Dict[str, dict]:
@@ -74,14 +74,14 @@ class Init(Phase):
         self.initial_state = initial_state or {}
         self.state_schema = state_schema or {}
 
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Context | None = None) -> dict:
         return self.initial_state
     
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return self.state_schema
 
 class Done(Phase):
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Context | None = None) -> dict:
         return {}
 
 class StateMachineError(Exception):
@@ -101,8 +101,8 @@ class PhaseManager:
             phases: list[Phase], 
             state_file: Path, 
             initial_state: dict | None = None, 
-            context: Context = None,
-            start_from: str = None
+            context: Context | None = None,
+            start_from: str | None = None
         ):
         self.phases = phases
         self.state_schema = self.calculate_schema(phases)
@@ -232,7 +232,7 @@ class PhaseManager:
 if __name__ == "__main__":
 
     class Step1(Phase):
-        def run(self, state: State, context: Context = None) -> dict:
+        def run(self, state: State, context: Context | None = None) -> dict:
             print(state.data)
             return {
                 "project_name": "My Project"
@@ -242,7 +242,7 @@ if __name__ == "__main__":
             return {}
 
     class Step2(Phase):
-        def run(self, state: State, context: Context = None) -> dict:
+        def run(self, state: State, context: Context | None = None) -> dict:
             return {
                 "entities": [
                     {
@@ -261,7 +261,7 @@ if __name__ == "__main__":
             }
         
     class Fail(Phase):
-        def run(self, state: State, context: Context = None) -> dict:
+        def run(self, state: State, context: Context | None = None) -> dict:
             print(state.data)
             # pass
             raise Exception("Failed")
