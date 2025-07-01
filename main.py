@@ -17,7 +17,7 @@ from extract_facts import ExtractFacts
 from execute_layouts import ExecuteLayouts
 from plan_work import PlanWork
 from execute_work import ExecuteWork
-from phase_manager import Done, PhaseManager, Context, Init
+from phase_manager import Done, PhaseManager, Context, Init, Phase, State
 from spec_processor import SpecProcessor
 from git_helper import GitHelper
 
@@ -70,6 +70,10 @@ def main():
     git_helper = GitHelper(project_path)
     context = Context(git_helper=git_helper, verbose=args.verbose)
 
+    head_hash = git_helper.get_head_hash()
+    if not head_hash:
+        raise RuntimeError("Failed to get HEAD hash")
+
     pm = PhaseManager(
         [
             init,
@@ -89,18 +93,9 @@ def main():
         ], 
         state_file=Path(project_path) / "codespeak_state.json",
         context=context,
-        start_from=args.start
+        start_from=args.start,
+        head_hash=head_hash
     )
-    
-    if args.start:
-        git_helper.ensure_clean_working_tree()
-        respective_commit_hash = git_helper.find_commit_hash_by_message(args.start)
-        if not respective_commit_hash:
-            print(f"Can't restore to the phase '{args.start}' because no commit was found for that phase.")
-            return
-        
-        print(f"Restoring to the commit hash {respective_commit_hash} for the phase '{args.start}'")
-        git_helper.restore(respective_commit_hash)
 
     state = pm.run_state_machine()
 

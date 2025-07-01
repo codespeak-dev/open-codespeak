@@ -12,7 +12,6 @@ class GitHelper:
 
     def _run_command(self, command: list[str]) -> tuple[int, str, str]:
         """A private helper to run shell commands in the repository directory."""
-        start_time = time.monotonic()
         try:
             process = subprocess.run(
                 command,
@@ -26,15 +25,11 @@ class GitHelper:
             return e.returncode, e.stdout, e.stderr
         except FileNotFoundError:
             return -1, "", "Git command not found. Is Git installed and in your PATH?"
-        finally:
-            duration = time.monotonic() - start_time
-            print(f"Command `{' '.join(command)}` finished in {duration:.3f}s")
 
     def save(self, title: str, description: str):
         """
         Stages all changes and commits them with a given message.
         """
-        print("Staging all changes...")
         add_returncode, _, add_stderr = self._run_command(['git', 'add', '.'])
         if add_returncode != 0:
             print(f"Error staging changes: {add_stderr}")
@@ -42,13 +37,7 @@ class GitHelper:
 
         commit_returncode, _, commit_stderr = self._run_command(['git', 'commit', '-m', title, '-m', description])
         if commit_returncode != 0:
-            # It's common for commit to fail if there's nothing to commit.
-            if "nothing to commit" in commit_stderr:
-                print("No changes to commit.")
-            else:
-                print(f"Error committing changes: {commit_stderr}")
-        else:
-            print("Changes committed successfully.")
+            raise RuntimeError(f"Error committing changes: {commit_stderr}")
     
     def ensure_clean_working_tree(self):
         """
@@ -59,11 +48,7 @@ class GitHelper:
         if status_returncode != 0:
             raise RuntimeError(f"Failed to check git status: {status_stderr}")
         if status_stdout.strip():
-            print("Git working directory is not clean:")
-            print(status_stdout)
-            raise RuntimeError("Git working directory is not clean. Please commit or stash your changes before proceeding.")
-        else:
-            print("Git working directory is clean.")
+            raise RuntimeError(f"Git working directory is not clean. Please commit or stash your changes before proceeding.\n{status_stdout}")
 
     def get_head_hash(self) -> str | None:
         """
@@ -82,7 +67,7 @@ class GitHelper:
         """
         # Use git log to get commit hashes and messages
         returncode, stdout, stderr = self._run_command(
-            ['git', 'log', '--all', '--grep', message_substring, '--format', '%H']
+            ['git', 'log', '--grep', message_substring, '--format=%H']
         )
         if returncode != 0:
             print(f"Error running git log: {stderr}")
@@ -109,25 +94,18 @@ class GitHelper:
         branch_exists = False
         returncode, stdout, stderr = self._run_command(['git', 'branch', '--list', branch_name])
         if returncode != 0:
-            print(f"Error checking for branch existence: {stderr}")
-            raise RuntimeError(f"Failed to check if branch '{branch_name}' exists.")
+            raise RuntimeError(f"Failed to check if branch '{branch_name}' exists.\n{stderr}")
         if stdout.strip():
             branch_exists = True
 
         if branch_exists:
-            print(f"Branch '{branch_name}' already exists. Checking it out.")
-            returncode, stdout, stderr = self._run_command(['git', 'checkout', branch_name])
-            if returncode != 0:
-                print(f"Error checking out branch '{branch_name}': {stderr}")
-                raise RuntimeError(f"Failed to checkout branch '{branch_name}'.")
-        else:
-            print(f"Creating and checking out new branch '{branch_name}'.")
-            returncode, stdout, stderr = self._run_command(['git', 'checkout', '-b', branch_name])
-            if returncode != 0:
-                print(f"Error creating branch '{branch_name}': {stderr}")
-                raise RuntimeError(f"Failed to create and checkout branch '{branch_name}'.")
+            raise RuntimeError(f"Branch '{branch_name}' already exists.")
+        
+        returncode, stdout, stderr = self._run_command(['git', 'checkout', '-b', branch_name])
+        if returncode != 0:
+            raise RuntimeError(f"Failed to create and checkout branch '{branch_name}'.\n{stderr}")
     
-    def restore(self, commit_hash: str):
+    def restore_state_to(self, commit_hash: str):
         """
         Restores the repository to the given commit hash.
         """

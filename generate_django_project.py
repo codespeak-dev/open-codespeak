@@ -61,19 +61,4 @@ class GenerateDjangoProject(Phase):
         generate_django_project_from_template(project_path, project_name, entities, "web")
         return {}
 
-    def cleanup(self, state: State, context: Context = None):
-        project_path = state["project_path"]
-        project_name = state["project_name"]
-
-        def rm(settings_path):
-            if os.path.exists(settings_path):
-                if os.path.isdir(settings_path):
-                    shutil.rmtree(settings_path)
-                else:
-                    os.remove(settings_path)
-                print(f"* Removed {settings_path}")
-
-        rm(os.path.join(project_path, project_name, project_name))
-        rm(os.path.join(project_path, project_name, "web"))
-        rm(os.path.join(project_path, project_name, "manage.py"))
 

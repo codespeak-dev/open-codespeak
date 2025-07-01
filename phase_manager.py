@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
+from colors import Colors
 from data_serializer import decode_data, encode_data, json_file, validate_schema_entry
 from git_helper import GitHelper
 
@@ -72,9 +73,6 @@ class Phase:
     def run(self, state: State, context: Context) -> dict:
         pass
 
-    def cleanup(self, state: State, context: Context):
-        pass
-
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return {}
 
@@ -86,18 +84,6 @@ class Init(Phase):
         self.state_schema = state_schema or {}
 
     def run(self, state: State, context: Context) -> dict:
-        from datetime import datetime
-        
-        # Create a new branch for the current execution
-        branch_name = datetime.now().strftime("cs/%m-%d-%H%M%S")
-        context.git_helper.create_and_checkout_branch(branch_name)
-
-        # Save HEAD hash of current branch to create fixup-commits for this one
-        head_hash = context.git_helper.get_head_hash()
-        if not head_hash:
-            raise RuntimeError("Failed to get HEAD hash")
-        self.initial_state["head_hash"] = head_hash
-
         return self.initial_state
     
     def get_state_schema_entries(self) -> Dict[str, dict]:
@@ -116,7 +102,7 @@ class PhaseManager:
     INITIAL_TRANSITION = "__initial"
     STATEMACHINE_ATTRIBUTE = "__statemachine"
     LAST_SUCCESSFUL_PHASE = "__last_successful"
-    LAST_FAILED_PHASE = "__last_failed"
+    BRANCHED_FROM = "__branched_from_commit"
     HISTORY = "__history"
     SCHEMA = "__schema"
     VERSION = "__version"
@@ -126,8 +112,9 @@ class PhaseManager:
             phases: list[Phase], 
             state_file: Path, 
             context: Context,
+            head_hash: str,
             initial_state: dict | None = None, 
-            start_from: str = None
+            start_from: str | None = None,
         ):
         self.phases = phases
         self.state_schema = self.calculate_schema(phases)
@@ -145,6 +132,9 @@ class PhaseManager:
             print(f"Loading state from {state_file}")
             self.load_state()
             print(f"  * Last executed phase: {self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)}")
+            print(f"  * Branched from commit: {self.current_state.internal.get(self.BRANCHED_FROM)}")
+        else:
+            self.current_state[self.BRANCHED_FROM] = head_hash
 
     def calculate_schema(self, phases: list[Phase]) -> Dict[str, dict]:
         BY_PHASE = "__by_phase"
@@ -171,29 +161,49 @@ class PhaseManager:
 
     def run_state_machine(self) -> State:
         phase_names = [phase.id for phase in self.phases]
-        state = self.current_state
-        # print(state.data)
-        for phase in self.phases:
-            current_phase = phase.id        
-            last_successful = state.internal.get(self.LAST_SUCCESSFUL_PHASE)
 
-            last_successful = self.calculate_starting_state(phase_names, last_successful)                
+        # Compute adjusted last successful phase (might be needed if start_from is provided)
+        adjusted_last_successful: Phase | None = self.calculate_last_successfull_state()
 
-            if last_successful in phase_names and phase_names.index(last_successful) >= phase_names.index(current_phase):
-                print(f"Phase {current_phase} has already been executed, skipping...")
-                continue
+        self.current_state = self.current_state._clone_internal(
+            {
+                self.LAST_SUCCESSFUL_PHASE: adjusted_last_successful.id if adjusted_last_successful else None
+            }
+        )
 
-            last_failed_phase = state.internal.get(self.LAST_FAILED_PHASE)
-            if last_failed_phase == current_phase and last_failed_phase != last_successful:
-                print(f"Phase {current_phase} failed last time, cleaning up...")
-                phase.cleanup(state, self.context)
+        # Branch out new execution branch
+        branch_name = datetime.datetime.now().strftime("cs/%m-%d-%H%M%S")
+        self.context.git_helper.create_and_checkout_branch(branch_name)
+
+        # Restore state to the last successful phase
+        if adjusted_last_successful:
+            hash_of_last_successful = self.context.git_helper.find_commit_hash_by_message(f"phase: {adjusted_last_successful.id}")
+            if not hash_of_last_successful:
+                print(f"Can't find commit hash for phase {adjusted_last_successful.id}, aborting")
+                return self.current_state
+        
+            self.context.git_helper.ensure_clean_working_tree() # do not overwrite dirty working tree
+            self.context.git_helper.restore_state_to(hash_of_last_successful)
+        else:
+            # Starting from the first phase, so need to restore state to the BRANCHED_FROM commit
+            self.context.git_helper.restore_state_to(self.current_state.get(self.BRANCHED_FROM))
+
+        # Compute phases to run
+        start_index = phase_names.index(adjusted_last_successful.id) + 1 if adjusted_last_successful else 0
+        phases_to_run = self.phases[start_index:]
+
+        print(f"Resuming from the last successful phase: {adjusted_last_successful.id if adjusted_last_successful else 'None'}\nFirst phase to run: {phases_to_run[0].id}")
+
+        # Run the phases that need to be run
+        for phase in phases_to_run:
+            self.current_phase = phase        
 
             def append_to_history(data: dict | None = None) -> dict:
                 return {
                     self.HISTORY: [
-                        *state.internal.get(self.HISTORY, []),
+                        *self.current_state.internal.get(self.HISTORY, []),
                         {
-                            "phase": current_phase,
+                            "phase": self.current_phase.id,
                             "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
                             **(data or {})
                         }
@@ -205,41 +215,52 @@ class PhaseManager:
             try:
                 self.context.git_helper.ensure_clean_working_tree()
                 
-                delta = phase.run(state, self.context)
+                print(f"{Colors.BRIGHT_YELLOW}Running phase: {self.current_phase.id}{Colors.END}")
+                delta = phase.run(self.current_state, self.context)
+                print(f"{Colors.BRIGHT_GREEN}Finished phase: {self.current_phase.id}{Colors.END}")
+
 
                 if not isinstance(delta, dict):
-                    raise StateMachineError(f"Phase {current_phase} returned a non-dict object")
+                    raise StateMachineError(f"Phase {self.current_phase.id} returned a non-dict object")
                 
-                state = state.clone(delta)._clone_internal({
-                    self.LAST_SUCCESSFUL_PHASE: current_phase,
+                self.current_state = self.current_state.clone(delta)._clone_internal({
+                    self.LAST_SUCCESSFUL_PHASE: self.current_phase.id,
                     **standard_fields,
                     **append_to_history()
                 })
             except BaseException as e:
-                print(f"Error running phase {current_phase}: {str(e) or type(e).__name__}")
-                self.save_state(state._clone_internal({
-                    self.LAST_FAILED_PHASE: current_phase,
+                print(f"Error running phase {self.current_phase.id}: {str(e) or type(e).__name__}")
+                self.save_state(self.current_state._clone_internal({
                     **standard_fields,
                     **append_to_history({"error": f"{type(e).__name__}: {str(e)}"})
                 }), phase)
                 raise e
 
-            self.save_state(state, phase)
+            self.save_state(self.current_state, phase)
 
-        return state
+        return self.current_state
 
-    def calculate_starting_state(self, phase_names, last_successful):
-        if self.start_from:
-            sf_index = phase_names.index(self.start_from)
-            if sf_index < 0:
-                raise StateMachineError(f"Phase {self.start_from} not found")
-                
-            if last_successful and sf_index > phase_names.index(last_successful) + 1:
-                raise StateMachineError(f"Phase {self.start_from} is not a valid starting point")
+    def calculate_last_successfull_state(self) -> Phase | None:
+        last_successful_id = self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)
+        last_successful = next((phase for phase in self.phases if phase.id == last_successful_id), None)
 
-            if sf_index > 0:
-                last_successful = self.phases[sf_index - 1].id
-        return last_successful
+        if not self.start_from:
+            return last_successful
+        
+        phase_names = [phase.id for phase in self.phases]
+
+        sf_index = phase_names.index(self.start_from)
+
+        if sf_index < 0:
+            raise StateMachineError(f"Phase {self.start_from} not found")
+        
+        if sf_index == 0:
+            return None # start from is the first phase, so last successful is None
+            
+        if last_successful and sf_index > phase_names.index(last_successful.id) + 1:
+            raise StateMachineError(f"Phase {self.start_from} is not a valid starting point: it's after last successful phase {last_successful}")
+
+        return self.phases[sf_index - 1]
 
     def load_state(self):
         with open(self.state_file, "r") as f:
@@ -256,4 +277,4 @@ class PhaseManager:
                     **state.data
                 }, self.state_schema, os.path.dirname(self.state_file)), f, indent=4)
 
-            self.context.git_helper.save(title=f"fixup! {state.get('head_hash')}", description=f'phase: {phase.id}\n{phase.description}')
+            self.context.git_helper.save(title=f"fixup! {state.get(self.BRANCHED_FROM)}", description=f'phase: {phase.id}\n{phase.description}')
