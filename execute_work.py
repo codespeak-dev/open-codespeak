@@ -1,4 +1,5 @@
 import anthropic
+from anthropic.types import ToolParam
 import os
 import re
 import json
@@ -188,15 +189,15 @@ class ImplementationAgent:
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
 
-    def get_anthropic_tools_schema(self):
+    def get_anthropic_tools_schema(self) -> list[ToolParam]:
         """Get the tools schema for the Anthropic API"""
         # Return only the schema fields needed for Anthropic API (exclude the 'prompt' field)
         return [
-            {
-                "name": tool["name"],
-                "description": tool["description"],
-                "input_schema": tool["input_schema"]
-            }
+            ToolParam(
+                name=tool["name"],
+                description=tool["description"],
+                input_schema=tool["input_schema"]
+            )
             for tool in TOOLS_DEFINITIONS
         ]
 
