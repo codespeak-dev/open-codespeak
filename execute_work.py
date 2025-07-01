@@ -132,7 +132,7 @@ Your task is to implement each step by:
 
 For each step, parse the overall_goal, key_knowledge, current_plan, and any screens or other work items.
 Create clean, functional Django code that follows best practices.
-
+Do not remove any FastAPI related code.
 Follow the same style and structure as the existing code.
 
 ## Available Tools
