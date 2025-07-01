@@ -2,6 +2,7 @@ import argparse
 import os
 import dotenv
 import sys
+from pathlib import Path
 from colors import Colors
 from data_serializer import text_file
 from extract_entities import ExtractEntities
@@ -14,6 +15,7 @@ from plan_screens import PlanScreens
 from plan_work import PlanWork
 from execute_work import ExecuteWork
 from phase_manager import Done, PhaseManager, Context, Init
+from spec_processor import SpecProcessor
 
 dotenv.load_dotenv()
 
@@ -43,7 +45,10 @@ def main():
 
         spec_file = args.filepath
         with open(spec_file, 'r') as f:
-            spec = f.read()
+            raw_spec = f.read()
+        
+        spec_processor = SpecProcessor()
+        spec = spec_processor.process(raw_spec)
 
         project_path = os.path.dirname(spec_file)
         init = Init({
@@ -69,7 +74,7 @@ def main():
             ExecuteWork(),
             Done(),
         ], 
-        state_file=os.path.join(project_path, "codespeak_state.json"),
+        state_file=Path(project_path) / "codespeak_state.json",
         context=Context(verbose=args.verbose),
         start_from=args.start
     )
