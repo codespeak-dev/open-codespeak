@@ -937,9 +937,6 @@ class ExecuteWork(Phase):
         # Process each screen
         print(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing screens with implementation agent:")
         for i, screen in enumerate(screens):
-            if i < 12:
-                print(f"{Colors.BRIGHT_CYAN}=== Skipping screen {i+1}/{len(screens)} ==={Colors.END}")
-                continue
             print(f"{Colors.BRIGHT_CYAN}=== Processing screen {i+1}/{len(screens)} ==={Colors.END}")
             print(f"Content preview: {screen[:100]}..." if len(screen) > 100 else f"Content: {screen}")
 
