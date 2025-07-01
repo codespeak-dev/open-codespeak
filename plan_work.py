@@ -10,18 +10,28 @@ from with_step import with_streaming_step
 PLAN_SCREENS_SYSTEM_PROMPT = """
 You are a senior web developer who specialized in Django.
 You have a list of user stories and screens that need to be implemented in an app.
-You need to order them, starting from those that need to be implemented first and finishing with those that have more dependencies.
+You need to order them as steps, starting from those that need to be implemented first and finishing with those that have more dependencies.
 
 Example of output:
 
-<screen>
-...all information we have about that screen and what it should do, based on actions and stories that we know
-</screen>
-<screen>
-...next screen in the order
-</screen>
+<step>
+<overall_goal>
+    <!-- A single, concise sentence describing the user's high-level objective. -->
+</overall_goal>
 
-IMPORTANT: You must not output anything except <screen> tags.
+<key_knowledge>
+    <!-- Crucial facts, conventions, and constraints the agent must remember based on the conversation history and interaction with the user. Use bullet points. -->
+</key_knowledge>
+
+<current_plan>
+    <!-- The agent's step-by-step plan. Mark completed steps. -->
+</current_plan>
+</step>
+<step>
+...
+</step>
+
+The output will be parsed by XML parser. It must be valid XML.
 """
 
 def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
@@ -47,7 +57,7 @@ def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
     return response_text.strip()
 
 class PlanWork(Phase):
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Context | None = None) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]
         verbose = context.verbose if context else False

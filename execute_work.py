@@ -121,14 +121,16 @@ def generate_tools_documentation():
     return "\n".join(docs)
 
 IMPLEMENTATION_SYSTEM_PROMPT = f"""
-You are a Django developer tasked with implementing a screen by creating Django views and HTML templates.
+You are a Django developer tasked with implementing work steps by creating Django views and HTML templates.
 
-Your task is to implement each screen by:
-1. Creating appropriate Django view functions in views.py
-2. Creating HTML template files in the templates directory
-3. Adding URL patterns to urls.py if needed
+Your task is to implement each step by:
+1. Analyzing the step's overall goal, key knowledge, and current plan
+2. Creating appropriate Django view functions in views.py
+3. Creating HTML template files in the templates directory
+4. Adding URL patterns to urls.py if needed
+5. Processing any screens or other work items within the step
 
-For each screen, parse the name, URL pattern, description and actions.
+For each step, parse the overall_goal, key_knowledge, current_plan, and any screens or other work items.
 Create clean, functional Django code that follows best practices.
 
 Follow the same style and structure as the existing code.
@@ -542,12 +544,14 @@ class ImplementationAgent:
 
     def execute_tool_call(self, tool_name: str, tool_input: dict):
         """Execute a tool call and return the result"""
-        # Skip confirmation if always_yes is set
-        if self.always_yes:
-            # Silent execution for confirmed operations
+        # Skip confirmation if always_yes is set or DEBUG is not enabled
+        debug_mode = os.getenv('DEBUG', '0') == '1'
+        
+        if self.always_yes or not debug_mode:
+            # Silent execution for confirmed operations or when DEBUG is disabled
             pass
         else:
-            # Ask for user confirmation
+            # Ask for user confirmation only when DEBUG=1
             print(f"{Colors.BRIGHT_YELLOW}[CONFIRMATION]{Colors.END} Do you want to execute this tool call?")
             print(f"  Tool: {tool_name}")
             print(f"  Parameters: {tool_input}")
@@ -875,11 +879,11 @@ class ImplementationAgent:
             "total_api_duration": total_api_duration
         }
 
-    def implement_screen(self, screen_text: str):
-        """Implement a screen by creating views and templates"""
-        print(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Starting screen implementation")
-        print(f"  Screen text length: {len(screen_text)} characters")
-        print(f"  Screen preview: {screen_text[:100]}...")
+    def implement_step(self, step_text: str):
+        """Implement a step by processing its components (goals, knowledge, plans, screens, etc.)"""
+        print(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Starting step implementation")
+        print(f"  Step text length: {len(step_text)} characters")
+        print(f"  Step preview: {step_text[:100]}...")
 
         # Read current models and views for context
         print(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Gathering context files")
@@ -903,7 +907,7 @@ class ImplementationAgent:
 <context name="urls" path="web/urls.py">
 {urls_content}
 </context>
-<screen>{screen_text}</screen>
+<step>{step_text}</step>
 """
 
         print(f"{Colors.BRIGHT_CYAN}[PROMPT]{Colors.END} Generated prompt:")
@@ -918,7 +922,7 @@ class ImplementationAgent:
         # Run the streaming conversation
         result = self.run_streaming_conversation(messages)
 
-        print(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Screen implementation completed")
+        print(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Step implementation completed")
         print(f"  Total input tokens: {input_tokens}")
         print(f"  Total output tokens: {result['total_output_tokens']}")
         print(f"  Total API duration: {result.get('total_api_duration', 0):.2f}s")
@@ -945,24 +949,24 @@ class ExecuteWork(Phase):
             print(f"  Make sure you have: pip install anthropic")
             print(f"  Set environment variable: ANTHROPIC_API_KEY=your_api_key")
 
-        # Parse work into an array by extracting content between <screen> tags
-        print(f"{Colors.BRIGHT_CYAN}[PARSING]{Colors.END} Parsing screens from work content...")
-        screen_pattern = r'<screen[^>]*>(.*?)</screen>'
-        screens = re.findall(screen_pattern, work, re.DOTALL)
-        print(f"{Colors.BRIGHT_CYAN}[PARSING]{Colors.END} Found {len(screens)} screen matches with regex")
+        # Parse work into an array by extracting content between <step> tags
+        print(f"{Colors.BRIGHT_CYAN}[PARSING]{Colors.END} Parsing steps from work content...")
+        step_pattern = r'<step[^>]*>(.*?)</step>'
+        steps = re.findall(step_pattern, work, re.DOTALL)
+        print(f"{Colors.BRIGHT_CYAN}[PARSING]{Colors.END} Found {len(steps)} step matches with regex")
 
-        # Clean up the extracted screens (remove leading/trailing whitespace)
-        screens = [screen.strip() for screen in screens]
+        # Clean up the extracted steps (remove leading/trailing whitespace)
+        steps = [step.strip() for step in steps]
 
-        print(f"{Colors.BRIGHT_GREEN}[PARSING]{Colors.END} Screen parsing completed:")
-        print(f"  Found {len(screens)} screens after cleanup")
+        print(f"{Colors.BRIGHT_GREEN}[PARSING]{Colors.END} Step parsing completed:")
+        print(f"  Found {len(steps)} steps after cleanup")
 
         # Print the array
-        print(f"{Colors.BRIGHT_MAGENTA}[SCREENS]{Colors.END} Parsed screens array:")
-        for i, screen in enumerate(screens):
-            print(f"{Colors.BRIGHT_GREEN}Screen {i+1}:{Colors.END}")
-            print(f"  Length: {len(screen)} characters")
-            print(f"  Preview: {screen[:100]}..." if len(screen) > 100 else f"  Content: {screen}")
+        print(f"{Colors.BRIGHT_MAGENTA}[STEPS]{Colors.END} Parsed steps array:")
+        for i, step in enumerate(steps):
+            print(f"{Colors.BRIGHT_GREEN}Step {i+1}:{Colors.END}")
+            print(f"  Length: {len(step)} characters")
+            print(f"  Preview: {step[:100]}..." if len(step) > 100 else f"  Content: {step}")
             print("-" * 40)
 
         # Create implementation agent with provider support
@@ -972,18 +976,18 @@ class ExecuteWork(Phase):
         # Initialize API duration tracking
         total_api_duration = 0.0
 
-        # Process each screen
-        print(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing screens with implementation agent:")
-        for i, screen in enumerate(screens):
-            print(f"{Colors.BRIGHT_CYAN}=== Processing screen {i+1}/{len(screens)} ==={Colors.END}")
-            print(f"Content preview: {screen[:100]}..." if len(screen) > 100 else f"Content: {screen}")
+        # Process each step
+        print(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing steps with implementation agent:")
+        for i, step in enumerate(steps):
+            print(f"{Colors.BRIGHT_CYAN}=== Processing step {i+1}/{len(steps)} ==={Colors.END}")
+            print(f"Content preview: {step[:100]}..." if len(step) > 100 else f"Content: {step}")
 
-            # Implement the screen
-            result = agent.implement_screen(screen)
-            screen_api_duration = result.get('total_api_duration', 0)
-            total_api_duration += screen_api_duration
+            # Implement the step
+            result = agent.implement_step(step)
+            step_api_duration = result.get('total_api_duration', 0)
+            total_api_duration += step_api_duration
 
-            print(f"{Colors.BRIGHT_GREEN}[PROCESSING]{Colors.END} Screen {i+1} processing completed")
+            print(f"{Colors.BRIGHT_GREEN}[PROCESSING]{Colors.END} Step {i+1} processing completed")
             print(f"  Agent history entries so far: {len(agent.history)}")
             print()
 
@@ -994,16 +998,12 @@ class ExecuteWork(Phase):
         print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK PHASE COMPLETED ==={Colors.END}")
         print(f"{Colors.BRIGHT_YELLOW}[SUMMARY]{Colors.END} Final summary:")
         print(f"  Provider used: {provider}")
-        print(f"  Screens processed: {len(screens)}")
+        print(f"  Steps processed: {len(steps)}")
         print(f"  Agent history entries: {len(agent.history)}")
         print(f"  Total duration ({provider}, API): {minutes}m {seconds}s")
-        print(f"  Agent history preview:")
-        for i, entry in enumerate(agent.history[-5:]):  # Show last 5 entries
-            print(f"    {i+1}. {entry}")
+
 
         return {
             "provider": provider,
-            # "screens": screens,
-            # "implementation_history": agent.history,
             "total_api_duration": total_api_duration
         }
