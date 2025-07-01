@@ -12,7 +12,7 @@ from migrate import Migrate
 from generate_integration_tests import GenerateIntegrationTests
 from reconcile_integration_tests import ReconcileIntegrationTests
 from plan_screens import PlanScreens
-from plan_layouts import PlanLayouts
+from extract_layouts import ExtractLayouts
 from execute_layouts import ExecuteLayouts
 from plan_work import PlanWork
 from execute_work import ExecuteWork
@@ -72,7 +72,7 @@ def main():
             GenerateIntegrationTests(),
             ReconcileIntegrationTests(),
             PlanScreens(),
-            PlanLayouts(),
+            ExtractLayouts(),
             PlanWork(),
             ExecuteLayouts(),
             ExecuteWork(),

@@ -52,7 +52,7 @@ LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
     )
 ]
 
-def plan_layouts_with_claude(stories: str, spec: str) -> str:
+def extract_layouts_with_claude(stories: str, spec: str) -> str:
     client = anthropic.Anthropic()
 
     with with_streaming_step("Planning layouts...") as (input_tokens, output_tokens):
@@ -99,13 +99,13 @@ def plan_layouts_with_claude(stories: str, spec: str) -> str:
 
         return result.strip()
 
-class PlanLayouts(Phase):
+class ExtractLayouts(Phase):
     def run(self, state: State, context: Optional[Context] = None) -> dict:
         stories = state.get("stories", "")
         spec = state["spec"]
         verbose = context.verbose if context else False
 
-        layouts = plan_layouts_with_claude(stories, spec)
+        layouts = extract_layouts_with_claude(stories, spec)
 
         if verbose:
             print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned Layouts:{Colors.END}")
