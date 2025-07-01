@@ -82,58 +82,6 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         print(f"{Colors.BRIGHT_YELLOW}Raw response: {response_text}{Colors.END}")
         raise
 
-def refine_entities(original_prompt: str, entities: dict, feedback: str) -> dict:
-    """
-    Use Claude to refine entities based on user feedback.
-    """
-    client = anthropic.Anthropic()
-
-    # Convert entities to JSON for the prompt
-    entities_json = json.dumps(entities, indent=2)
-
-    system_prompt = (
-        "You are an expert Django developer. Given the original user prompt, current entities, and user feedback, "
-        "modify the entities accordingly. Return a JSON array of objects with the same structure: "
-        "- 'name' (model name)"
-        "- 'fields' (object mapping field names to Django field types)"
-        "- 'relationships' (object mapping field names to relationship info with 'type' and 'related_to' keys)"
-        "Only return the JSON array, no explanation."
-    )
-
-    user_message = f"""Original prompt:
-{original_prompt}
-
-Current entities:
-{entities_json}
-
-User feedback:
-{feedback}
-
-Please modify the entities based on the feedback."""
-
-    with with_streaming_step("Refining entities based on feedback...") as (input_tokens, output_tokens):
-        response_text = ""
-        # Count input tokens from system prompt and user message
-        input_tokens[0] = len((system_prompt + user_message).split())
-
-        with client.messages.stream(
-            model="claude-3-5-sonnet-latest",
-            max_tokens=8192,
-            temperature=0,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}]
-        ) as stream:
-            for text in stream.text_stream:
-                response_text += text
-                output_tokens[0] += len(text.split())
-
-    try:
-        return json.loads(response_text.strip())
-    except json.JSONDecodeError as e:
-        print(f"{Colors.BRIGHT_RED}Error: Failed to parse JSON response from Claude during refinement: {e}{Colors.END}")
-        print(f"{Colors.BRIGHT_YELLOW}Raw response: {response_text}{Colors.END}")
-        raise
-
 def display_entities(entities: List[Entity]):
     """Display entities in a formatted way"""
     print("Entities extracted:")
