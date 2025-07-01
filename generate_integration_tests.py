@@ -1,8 +1,5 @@
 import os
-import subprocess
-import sys
 import anthropic
-import json
 from typing import Dict, Any, Optional
 from colors import Colors
 from phase_manager import State, Phase, Context
