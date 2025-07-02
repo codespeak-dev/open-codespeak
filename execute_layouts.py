@@ -125,7 +125,7 @@ class ExecuteLayouts(Phase):
         facts = state["facts"]
         project_path = state["project_path"]
         
-        tree_section("Layout Implementation")
+        tree_section("Generate layouts")
 
         agent = LayoutImplementationAgent(project_path)
         async def process_layouts_async():
