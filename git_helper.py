@@ -60,6 +60,16 @@ class GitHelper:
             return None
         return stdout.strip()
     
+    def get_head_author(self) -> str | None:
+        """
+        Returns the author of the current HEAD commit, or None if it cannot be determined.
+        """
+        returncode, stdout, stderr = self._run_command(['git', 'log', '-1', '--format=%an'])
+        if returncode != 0:
+            print(f"Error getting HEAD author: {stderr}")
+            return None
+        return stdout.strip()
+    
     def find_commit_hash_by_message(self, message_substring: str) -> str | None:
         """
         Finds the hash of the most recent commit whose message contains the given substring.
@@ -111,3 +121,25 @@ class GitHelper:
         """
         self._run_command(["git", "reset", "--hard", commit_hash])
         self._run_command(["git", "checkout", "."])
+
+    def get_path_diff(self, file_path: str, from_sha: str, to_sha: str) -> str:
+        """
+        Returns the git diff for a given file path between two commit SHAs.
+        
+        Args:
+            file_path: Path to the file to get diff for
+            from_sha: Starting commit SHA
+            to_sha: Ending commit SHA
+            
+        Returns:
+            The git diff as a string, or empty string if no diff or error
+        """
+        command = ['git', '--no-pager', 'diff', '--no-prefix', '--unified=0', from_sha, to_sha, '--', file_path]
+        
+        returncode, stdout, stderr = self._run_command(command)
+        
+        if returncode != 0:
+            print(f"Error getting diff for {file_path}: {stderr}")
+            return ""
+            
+        return stdout

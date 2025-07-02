@@ -20,6 +20,7 @@ from execute_work import ExecuteWork
 from phase_manager import Done, PhaseManager, Context, Init, Phase, State
 from spec_processor import SpecProcessor
 from git_helper import GitHelper
+from incremental_mode import IncrementalMode
 
 dotenv.load_dotenv()
 
@@ -34,7 +35,12 @@ def main():
                        default=os.getenv('CODESPEAK_TARGET_DIR', '.'),
                        help='Target directory for the generated project (defaults to CODESPEAK_TARGET_DIR env var or current directory)')
     parser.add_argument('--incremental', help='Path to the project output dir')
-    parser.add_argument('--start', help='Start from a specific phase. Only works in incremental mode.')
+
+    start_from_argument_group = parser.add_mutually_exclusive_group()
+    start_from_argument_group.add_argument('--start', help='Start from a specific phase. Only works in incremental mode.')
+    start_from_argument_group.add_argument('--restart-last-failed', help='Continue from the last failed phase. Only works in incremental mode.')
+    start_from_argument_group.add_argument('--next-round', action='store_true', help='Start next round of incremental compilation. Only works in incremental mode, and only if the last round was successful.')
+
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
     parser.add_argument('--dry-run', action='store_true', help='Dry run phases (no requests to LLMs)')
     args = parser.parse_args()
@@ -47,9 +53,20 @@ def main():
         }, {
             "spec": text_file("spec.md"),
         })
+
+        if args.start:
+            incremental_mode = IncrementalMode.compile_from_phase(args.start)
+        elif args.restart_last_failed:
+            incremental_mode = IncrementalMode.continue_from_last_failed()
+        elif args.next_round:
+            incremental_mode = IncrementalMode.next_round()
+        else:
+            print(f"{Colors.BRIGHT_RED}Error: --incremental is provided, but no incremental mode is specified. Please specify one of --start, --restart-last-failed, or --next-round{Colors.END}")
+            parser.print_help()
+            return
     else:
         if not args.filepath:
-            print("Error: filepath is required when not in incremental mode")
+            print(f"{Colors.BRIGHT_RED}Error: filepath is required when not in incremental mode{Colors.END}")
             parser.print_help()
             return
 
@@ -70,12 +87,16 @@ def main():
             "spec": text_file("spec.md"),
         })
 
+        incremental_mode = IncrementalMode.clean()
+
     git_helper = GitHelper(project_path)
-    context = Context(git_helper=git_helper, dry_run=args.dry_run, verbose=args.verbose)
 
     head_hash = git_helper.get_head_hash()
     if not head_hash:
-        raise RuntimeError("Failed to get HEAD hash")
+        print(f"{Colors.BRIGHT_RED}Error: failed to get HEAD hash{Colors.END}")
+        return
+
+    context = Context(git_helper=git_helper, incremental_mode=incremental_mode, head_hash=head_hash, dry_run=args.dry_run, verbose=args.verbose)
 
     pm = PhaseManager(
         [
@@ -96,8 +117,6 @@ def main():
         ], 
         state_file=Path(project_path) / "codespeak_state.json",
         context=context,
-        start_from=args.start,
-        head_hash=head_hash
     )
 
     state = pm.run_state_machine()

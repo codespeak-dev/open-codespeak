@@ -11,12 +11,16 @@ from typing import Any, Dict
 from colors import Colors
 from data_serializer import decode_data, encode_data, json_file, validate_schema_entry
 from git_helper import GitHelper
+from incremental_mode import IncrementalMode
+from spec_processor import SpecProcessor
 
 class Context:
-    def __init__(self, git_helper: GitHelper, dry_run: bool = False, verbose: bool = False):
+    def __init__(self, git_helper: GitHelper, incremental_mode: IncrementalMode, head_hash: str, dry_run: bool = False, verbose: bool = False):
         self.verbose = verbose
         self.git_helper = git_helper
         self.dry_run = dry_run
+        self.incremental_mode = incremental_mode
+        self.head_hash = head_hash
 
 class State:
     def __init__(self, data: dict | None = None, _internal_data: dict | None = None):
@@ -118,16 +122,13 @@ class PhaseManager:
             phases: list[Phase], 
             state_file: Path, 
             context: Context,
-            head_hash: str,
             initial_state: dict | None = None, 
-            start_from: str | None = None,
         ):
         self.phases = phases
         self.state_schema = self.calculate_schema(phases)
 
         self.state_file = state_file
         self.context = context
-        self.start_from = start_from
         
         self.current_state = State(
             data=initial_state or {},
@@ -138,9 +139,9 @@ class PhaseManager:
             print(f"Loading state from {state_file}")
             self.load_state()
             print(f"  * Last executed phase: {self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)}")
-            print(f"  * Branched from commit: {self.current_state.internal.get(self.BRANCHED_FROM)}")
+            print(f"  * Branched from commit: {self.current_state.get(self.BRANCHED_FROM)}")
         else:
-            self.current_state[self.BRANCHED_FROM] = head_hash
+            self.current_state[self.BRANCHED_FROM] = self.context.head_hash
 
     def calculate_schema(self, phases: list[Phase]) -> Dict[str, dict]:
         BY_PHASE = "__by_phase"
@@ -166,39 +167,26 @@ class PhaseManager:
             }
 
     def run_state_machine(self) -> State:
-        phase_names = [phase.id for phase in self.phases]
-
-        # Compute adjusted last successful phase (might be needed if start_from is provided)
-        adjusted_last_successful: Phase | None = self.calculate_last_successfull_state()
-
-        self.current_state = self.current_state._clone_internal(
-            {
-                self.LAST_SUCCESSFUL_PHASE: adjusted_last_successful.id if adjusted_last_successful else None
-            }
-        )
-
         # Branch out new execution branch
         branch_name = datetime.datetime.now().strftime("cs/%m-%d-%H%M%S")
         self.context.git_helper.create_and_checkout_branch(branch_name)
 
-        # Restore state to the last successful phase
-        if adjusted_last_successful:
-            hash_of_last_successful = self.context.git_helper.find_commit_hash_by_message(f"phase: {adjusted_last_successful.id}")
-            if not hash_of_last_successful:
-                print(f"Can't find commit hash for phase {adjusted_last_successful.id}, aborting")
-                return self.current_state
-        
-            self.context.git_helper.ensure_clean_working_tree() # do not overwrite dirty working tree
-            self.context.git_helper.restore_state_to(hash_of_last_successful)
+        phases_to_run = self.prepare_incremental_phases_run()
+        if self.context.incremental_mode.type == IncrementalMode.CLEAN:
+            print(f"Running clean compilation")
         else:
-            # Starting from the first phase, so need to restore state to the BRANCHED_FROM commit
-            self.context.git_helper.restore_state_to(self.current_state.get(self.BRANCHED_FROM))
+            print(f"Running in incremental mode:{self.context.incremental_mode}")
+            phase_explanation = ""
+            if (self.context.incremental_mode.type == IncrementalMode.RESTART_FROM_LAST_FAILED):
+                phase_explanation = f" (inferred as the next phase after the last successful phase)"
+            if (self.context.incremental_mode.type == IncrementalMode.COMPILE_FROM_PHASE):
+                phase_explanation = f" (passed via --start)"
+            if (self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND):
+                phase_explanation = f" (starting new compilation round)"
+            print(f"    Starting from the phase '{phases_to_run[0].id}'{phase_explanation}")
 
-        # Compute phases to run
-        start_index = phase_names.index(adjusted_last_successful.id) + 1 if adjusted_last_successful else 0
-        phases_to_run = self.phases[start_index:]
-
-        print(f"Resuming from the last successful phase: {adjusted_last_successful.id if adjusted_last_successful else 'None'}\nFirst phase to run: {phases_to_run[0].id}")
+            if self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND:
+                print(f"    Spec diff: {self.current_state.get('spec_diff')}")
 
         # Run the phases that need to be run
         for phase in phases_to_run:
@@ -252,27 +240,123 @@ class PhaseManager:
 
         return self.current_state
 
-    def calculate_last_successfull_state(self) -> Phase | None:
+    def compute_state_to_start_from(self, incremental_mode: IncrementalMode) -> Phase:
+        """
+        Computes the first phase to run w.r.t. passed self.context.incremental_mode, and asserts that 
+        the requested self.context.incremental_mode is consistent with the current state
+
+        Returns the first phase to run (for example, last failed phase for --restart-last-failed)
+        """
+        if incremental_mode.type == IncrementalMode.CLEAN:
+            return self.phases[0]
+        
         last_successful_id = self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)
+        assert last_successful_id, f"Expected to have LAST_SUCCESSFUL_PHASE in incremental_mode {incremental_mode}, bot none found. Full state:\n{self.current_state.internal}"
+        
         last_successful = next((phase for phase in self.phases if phase.id == last_successful_id), None)
-
-        if not self.start_from:
-            return last_successful
+        assert last_successful, f"Can't find phase with id {last_successful_id} in {self.phases}"
         
-        phase_names = [phase.id for phase in self.phases]
-
-        sf_index = phase_names.index(self.start_from)
-
-        if sf_index < 0:
-            raise StateMachineError(f"Phase {self.start_from} not found")
-        
-        if sf_index == 0:
-            return None # start from is the first phase, so last successful is None
+        if incremental_mode.type == IncrementalMode.RESTART_FROM_LAST_FAILED:
+            first_failed = self.next_phase(last_successful)
+            if not first_failed:
+                raise StateMachineError(
+                    f"Last successful phase {last_successful.id} is the last phase, can't retry from last failed. "
+                    f"If you want to start the next compilation round, use '--incremental --next-round' (or './dev compile)'"
+                )
             
-        if last_successful and sf_index > phase_names.index(last_successful.id) + 1:
-            raise StateMachineError(f"Phase {self.start_from} is not a valid starting point: it's after last successful phase {last_successful}")
+            return first_failed
+        
+        if incremental_mode.type == IncrementalMode.COMPILE_FROM_PHASE:
+            phase_names = [phase.id for phase in self.phases]
+            assert incremental_mode.phase_name, f"IncrementalMode.COMPILE_FROM_PHASE doesn't have phase_name"
 
-        return self.phases[sf_index - 1]
+            last_successful_index = self.phases.index(last_successful) # Guaranteed to be found, see asserts above
+            
+            sf_index = phase_names.index(incremental_mode.phase_name)
+            assert sf_index >= 0, f"Phase {incremental_mode.phase_name} not found in {self.phases}"
+
+            if sf_index > last_successful_index:
+                raise StateMachineError(
+                    f"Phase {incremental_mode.phase_name} is not a valid starting point: it's order index ({sf_index})" 
+                    f"is after the last successful phase {last_successful.id} ({last_successful_index})"
+                )
+
+            return self.phases[sf_index]
+        
+
+        if incremental_mode.type == IncrementalMode.NEXT_ROUND:
+            if not isinstance(last_successful, Done):
+                raise StateMachineError(
+                    f"Last successful phase {last_successful.id} is not a Done phase, can't start next round. "
+                    f"Finish the previous round by running '--incremental --restart-last-failed' (./dev retry)"
+                )
+            
+            return self.phases[0]
+        
+        raise StateMachineError(f"Unhandled incremental mode: {incremental_mode.type}")
+
+    def prepare_incremental_phases_run(self) -> list[Phase]:
+        """
+        Computes the first phase to run w.r.t. passed self.context.incremental_mode
+
+        Ensures that the state on disk and in memory is consistent with the work we're about to do.
+
+        Returns the list of phases to run.
+        """
+        first_phase_to_run: Phase = self.compute_state_to_start_from(self.context.incremental_mode)
+
+        previous_phase = self.previous_phase(first_phase_to_run)
+        if previous_phase and previous_phase.id != self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE):
+            # Last successful phase was overridden by --start-from, adjust our internal state
+            self.current_state = self.current_state._clone_internal(
+                {
+                    self.LAST_SUCCESSFUL_PHASE: previous_phase.id
+                }
+            )
+
+        # todo(dsavvinov): extact into a separate phases
+        if previous_phase:
+            # Restore working tree state to the last successful phase
+            hash_of_last_successful = self.context.git_helper.find_commit_hash_by_message(f"phase: {previous_phase.id}")
+            if not hash_of_last_successful:
+                raise StateMachineError(f"Can't find commit hash for phase {previous_phase.id}, aborting")
+        
+            self.context.git_helper.ensure_clean_working_tree() # do not overwrite dirty working tree
+            self.context.git_helper.restore_state_to(hash_of_last_successful)
+
+        if self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND:
+            # defensive: ensure that the last commit isn't an util-commit by Codespeak
+            author = self.context.git_helper.get_head_author()
+            if not author:
+                raise StateMachineError("Can't get HEAD author, aborting")
+
+            if author == "Codespeak":
+                raise StateMachineError("Can't start new compilation round: the last commit is an util-commit by Codespeak. Make a change to the spec, commit it, and try again")
+            
+            # Reset BRANCHED_FROM to the last commit by the user
+            previous_spec_commit: str | None = self.current_state.get(self.BRANCHED_FROM)
+            assert previous_spec_commit, f"Expected to have {self.BRANCHED_FROM} in state, but none found. Full state:\n{self.current_state.internal}"
+            
+            self.current_state[self.BRANCHED_FROM] = self.context.head_hash
+
+            # Read new spec
+            # TODO(dsavvinov): extact into a separate phase, deduplicate with the code in main.py
+            spec_file_path = self.current_state["spec_file"]
+            with open(spec_file_path, 'r') as f:
+                raw_spec = f.read()
+
+            spec_processor = SpecProcessor()
+            new_spec = spec_processor.process(raw_spec)
+
+            self.current_state["spec"] = new_spec
+
+            # Compute spec diff
+            spec_path_relative_to_project_root = os.path.relpath(spec_file_path, self.current_state["project_path"])
+            spec_diff = self.context.git_helper.get_path_diff(spec_path_relative_to_project_root, previous_spec_commit, self.context.head_hash)
+            self.current_state["spec_diff"] = spec_diff
+
+        start_index = self.phases.index(first_phase_to_run)
+        return self.phases[start_index:]
 
     def load_state(self):
         with open(self.state_file, "r") as f:
@@ -280,6 +364,24 @@ class PhaseManager:
             internal = data.pop(self.STATEMACHINE_ATTRIBUTE, {})
 
             self.current_state = State(data=data, _internal_data=internal)
+    
+    def next_phase(self, phase: Phase) -> Phase | None:
+        """
+        Get the next phase after the given phase, or None if it's the last phase.
+        """
+        current_index = self.phases.index(phase)
+        if current_index == len(self.phases) - 1:
+            return None  # This is the last phase
+        return self.phases[current_index + 1]
+    
+    def previous_phase(self, phase: Phase) -> Phase | None:
+        """
+        Get the previous phase before the given phase, or None if it's the first phase.
+        """
+        current_index = self.phases.index(phase)
+        if current_index == 0:
+            return None  # This is the first phase
+        return self.phases[current_index - 1]
 
     def save_state(self, state, phase: Phase):
         if self.state_file:
@@ -290,3 +392,5 @@ class PhaseManager:
                 }, self.state_schema, os.path.dirname(self.state_file)), f, indent=4)
 
             self.context.git_helper.save(title=f"fixup! {state.get(self.BRANCHED_FROM)}", description=f'phase: {phase.id}\n{phase.description}')
+    
+    

@@ -45,6 +45,8 @@ usage() {
     echo "  new <specfile> --dry-run  Create new project from spec file in dry run mode (no requests to LLMs)"
     echo "  current            Show current project directory"
     echo "  retry [--project_dir path] [PhaseName]  Retry from specific phase"
+    echo "  compile [--project_dir path]  Compile the project incrementally"
+    echo "  change_spec        Adds a synthetic change to the spec and commits it"
     echo "  clear              Clear all test outputs"
     echo "  rmcur              Remove current project"
     echo ""
@@ -88,7 +90,7 @@ new_project() {
     git init "$project_dir"
     
     # Copy spec file
-    cp "$specfile" "$project_dir/spec.md"
+    cp "$specfile" "$project_dir/spec_user.md"
 
     # First commits
     (
@@ -98,8 +100,8 @@ new_project() {
         git commit -m "Initial commit" --author="Codespeak <gen@codespeak.dev>" --allow-empty
 
         # Commit the copied spec file to git
-        git add spec.md
-        git commit -m "Add spec.md" -m "Initial spec file for project" --author="Codespeak <gen@codespeak.dev>"
+        git add spec_user.md
+        git commit -m "Add spec_user.md" -m "Initial spec file for project" --author="Codespeak <gen@codespeak.dev>"
     )
     
     # Set as current project
@@ -108,7 +110,7 @@ new_project() {
     echo "Project created: $project_dir"
     echo "Current project set to: $project_dir"
 
-    local codespeak_args=("$project_dir/spec.md" "--target-dir" "$project_dir")
+    local codespeak_args=("$project_dir/spec_user.md" "--target-dir" "$project_dir")
     
     # Add --dry-run if specified
     if [[ "$dry_run" == "true" ]]; then
@@ -183,8 +185,47 @@ retry_project() {
         echo "Starting from phase: $phase_name"
         ./codespeak --incremental "$project_dir" --start "$phase_name"
     else
-        ./codespeak --incremental "$project_dir"
+        ./codespeak --incremental "$project_dir --restart-last-failed"
     fi
+}
+
+compile_project() {
+    local project_dir=""
+    
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --project_dir)
+                project_dir="$2"
+                shift 2
+                ;;
+            *)
+                echo "Error: unexpected argument '$1'"
+                usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Use current project if no project_dir specified
+    if [[ -z "$project_dir" ]]; then
+        project_dir=$(get_current_project)
+        if [[ -z "$project_dir" ]]; then
+            echo "Error: no current project set and no --project_dir specified"
+            exit 1
+        fi
+    fi
+    
+    if [[ ! -d "$project_dir" ]]; then
+        echo "Error: project directory '$project_dir' not found"
+        exit 1
+    fi
+    
+    # Set as current project
+    set_current_project "$project_dir"
+    
+    echo "Compiling project: $project_dir"
+    ./codespeak --incremental "$project_dir" --next-round
 }
 
 # Function to clear all test outputs
@@ -217,6 +258,38 @@ remove_current() {
     fi
 }
 
+# Function to change spec
+change_spec() {
+    local current=$(get_current_project)
+    if [[ -z "$current" ]]; then
+        echo "Error: no current project set"
+        exit 1
+    fi
+    
+    if [[ ! -d "$current" ]]; then
+        echo "Error: current project directory '$current' not found"
+        exit 1
+    fi
+    
+    local spec_file="$current/spec_user.md"
+    if [[ ! -f "$spec_file" ]]; then
+        echo "Error: spec_user.md file not found in project directory"
+        exit 1
+    fi
+    
+    echo "" >> "$spec_file"
+    echo "new spec line" >> "$spec_file"
+    echo "Added new line to spec_user.md"
+    
+    # Commit the change
+    local original_dir=$(pwd)
+    cd "$current"
+    git add spec_user.md
+    git commit -m "Change spec_user.md"
+    cd "$original_dir"
+    echo "Committed spec change"
+}
+
 # Main script logic
 case "${1:-}" in
     new)
@@ -227,6 +300,12 @@ case "${1:-}" in
         ;;
     retry)
         retry_project "${@:2}"
+        ;;
+    compile)
+        compile_project "${@:2}"
+        ;;
+    change_spec)
+        change_spec
         ;;
     clear)
         clear_all
