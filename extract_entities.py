@@ -11,7 +11,8 @@ from typing import Dict, List, Optional
 
 SYSTEM_PROMPT = """
 You are an expert Django developer and an excellent data modeler. Given a user prompt, extract a list of Django models and their fields.
-Remember, it should only be the entities that are actually storing the data in the database.
+
+IMPORTANT: you should only extract entities that are actually storing the data in the database. It's perfectly fine for a specification not to have any entities.
 
 Return a JSON array of objects, each with:
 - 'name' (model name)

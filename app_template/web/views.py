@@ -2,10 +2,15 @@ from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from asgiref.sync import sync_to_async
+{% if entities %}
 from .models import {{ entities|map(attribute='name')|join(', ') }}
+{% else %}
+# No entities defined
+{% endif %}
 
 app = FastAPI()
 
+{% if entities %}
 {% set entity_names = entities|map(attribute='name')|list %}
 {% for entity in entities %}
 {# Create basic Pydantic models #}
@@ -163,3 +168,4 @@ async def remove_{{ entity.name.lower() }}_{{ rel_field }}(item_id: int, related
 
 {% endif %}
 {% endfor %}
+{% endif %}
