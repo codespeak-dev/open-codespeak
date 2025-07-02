@@ -68,7 +68,13 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
 class GenerateIntegrationTests(Phase):
     description = "Generates integration tests for the Django project"
 
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Optional[Context] = None) -> dict:
+        # Skip if entities are empty
+        entities = state.get("entities", [])
+        if not entities:
+            print(f"{Colors.BRIGHT_YELLOW}Skipping integration test generation - no entities found{Colors.END}")
+            return {}
+
         project_path = state["project_path"]
 
         views_content = read_views_file(project_path)

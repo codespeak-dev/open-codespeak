@@ -326,7 +326,12 @@ Please use the tools to analyze the project structure, identify what's causing t
 class ReconcileIntegrationTests(Phase):
     description = "Fix failing integration tests"
 
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Optional[Context] = None) -> dict:
+        entities = state.get("entities", [])
+        if not entities:
+            print(f"{Colors.BRIGHT_YELLOW}Skipping integration test reconciliation - no entities found{Colors.END}")
+            return {}
+
         project_path = state["project_path"]
         test_file_path = state["integration_test_path"]
 
