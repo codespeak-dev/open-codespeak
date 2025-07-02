@@ -1,0 +1,117 @@
+import hashlib
+from pathlib import Path
+from typing import Any
+import json
+
+
+class CacheKey:
+    def __init__(self, key_source: Any):
+        self._raw_source = key_source
+        self._prepared_source = self._make_hashable(key_source)
+        self._hash = hashlib.sha256(self._prepared_source.encode()).hexdigest()
+        
+    def __hash__(self):
+        return hash(self.hash)
+    
+    def __eq__(self, other):
+        return self.hash == other.hash
+
+    def __str__(self):
+        return self.hash
+    
+    @property
+    def hash(self) -> str:
+        return self._hash
+    
+    @property
+    def key_source(self) -> str:
+        return self._prepared_source
+
+    def _make_hashable(self, raw_source: Any) -> str:        
+        serializable = make_serializable(raw_source)
+        
+        if isinstance(serializable, str):
+            return serializable
+        else:
+            return json.dumps(serializable, sort_keys=True, indent=2)
+
+
+def make_serializable(obj, is_key: bool = False):
+    """Convert params to a serializable format, handling Pydantic models"""
+    if hasattr(obj, 'model_dump'): 
+        return obj.model_dump()
+    elif isinstance(obj, dict):
+        return {make_serializable(k, is_key=True): make_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [make_serializable(item) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        return obj.__dict__
+    elif isinstance(obj, str):
+        return obj
+    elif isinstance(obj, (int, float, bool)):
+        if is_key:
+            return str(obj)
+        else:
+            return obj
+    elif obj is None:
+        return None
+    else:
+        raise ValueError(f"Object {obj} is not JSON-compatible")
+
+
+class FileBasedCache:
+    def __init__(self, cache_dir: Path):
+        self.cache_dir = cache_dir
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+    def _file_name(self, key: str, file_type: str) -> Path:
+        return self.cache_dir.joinpath(f"{key}.{file_type}")
+
+    def _get(self, key: CacheKey) -> Any:
+        file_name = self._file_name(key, "json")
+        if file_name.exists():
+            return json.loads(file_name.read_text())
+        
+        file_name = self._file_name(key, "txt")
+        if file_name.exists():
+            return file_name.read_text()
+        
+        return None
+    
+    def _set(self, key: CacheKey, value: Any):
+        if isinstance(value, str):
+            self._file_name(key.hash, "txt").write_text(value)
+        else:
+            self._file_name(key.hash, "json").write_text(
+                json.dumps(make_serializable(value), sort_keys=True, indent=2))
+
+        if isinstance(key._raw_source, str):
+            self._file_name(f"{key.hash}.src", "txt").write_text(key.key_source)
+        else:
+            self._file_name(f"{key.hash}.src", "json").write_text(key.key_source)
+    
+    def get(self, key: Any) -> Any:
+        if isinstance(key, CacheKey):
+            return self._get(key)
+        else:
+            return self._get(CacheKey(key))
+
+    def set(self, key: Any, value: Any):
+        if isinstance(key, CacheKey):
+            self._set(key, value)
+        else:
+            self._set(CacheKey(key), value)
+
+
+if __name__ == "__main__":
+    cache = FileBasedCache(Path("test_outputs/.test_llm_cache"))
+    cache.set(CacheKey("test"), "test")
+    cache.set(CacheKey({"a": "b"}), ["test", "test2"])
+    cache.set(CacheKey({"a": "b", 2: 1}), "test111")
+    cache.set(CacheKey("key"), ["value"])
+    print(cache.get(CacheKey("test")))
+    print(cache.get(CacheKey({"a": "b"})))
+    print(cache.get(CacheKey({"a": "b", 2: 1})))
+    print(cache.get(CacheKey("key")))
+    import sys
+    sys.exit()

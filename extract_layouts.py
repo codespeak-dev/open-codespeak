@@ -1,5 +1,5 @@
 from typing import Dict, Optional
-import anthropic
+import llm_cache
 import json
 from anthropic.types import ToolParam
 from colors import Colors
@@ -54,7 +54,7 @@ LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
 ]
 
 def extract_layouts_with_claude(stories: str, spec: str) -> list[dict]:
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
 
     with with_streaming_step("Planning layouts...") as (input_tokens, output_tokens):
         content = f"<spec>\n{spec}\n</spec>\n<stories>\n{stories}\n</stories>"

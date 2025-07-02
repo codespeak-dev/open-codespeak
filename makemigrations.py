@@ -2,9 +2,8 @@ import os
 import subprocess
 import sys
 
-import anthropic
-
 from colors import Colors
+import llm_cache
 from with_step import with_step
 
 from phase_manager import State, Phase, Context
@@ -35,7 +34,7 @@ def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
     Use Claude to detect missing imports from error output and fix them using tool calls.
     Returns True if fixes were applied, False otherwise.
     """
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
     system_prompt = (
         "You are an expert Python/Django developer. Given an error output from Django makemigrations, "
         "identify any missing import statements needed to fix NameError issues. "

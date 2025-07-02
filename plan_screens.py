@@ -1,9 +1,7 @@
 from typing import Dict, Optional
-import anthropic
 import os
-import re
-from colors import Colors
 from data_serializer import text_file
+import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 
@@ -36,7 +34,7 @@ IMPORTANT: do not output anything except <group> and <story> sections
 """
 
 def plan_stories_with_claude(spec: str, project_path: str) -> str:
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
 
     with with_streaming_step("Planning user stories and screens...") as (input_tokens, output_tokens):
         response_text = ""

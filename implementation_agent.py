@@ -1,5 +1,6 @@
-import anthropic
+from anthropic import APIStatusError
 from anthropic.types import ToolParam
+import llm_cache
 import os
 import json
 import difflib
@@ -164,7 +165,7 @@ class ImplementationAgent:
 
         # Initialize clients based on provider
         if self.provider == 'anthropic':
-            self.anthropic_client = anthropic.Anthropic()
+            self.anthropic_client = llm_cache.Anthropic()
             print(f"  Anthropic client initialized")
         elif self.provider == 'gemini':
             # Initialize Gemini client
@@ -723,7 +724,7 @@ class ImplementationAgent:
         import httpx
         if isinstance(e, (httpx.ReadTimeout, httpx.ConnectTimeout)):
             return True
-        if isinstance(e, anthropic.APIStatusError):
+        if isinstance(e, APIStatusError):
             if hasattr(e, 'response') and hasattr(e.response, 'json'):
                 error_type = e.response.json().get('error', {}).get('type', '')
             else:

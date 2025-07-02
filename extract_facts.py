@@ -1,6 +1,5 @@
 from typing import Dict, Optional
-import anthropic
-from anthropic.types import ToolParam
+import llm_cache
 from colors import Colors
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
@@ -16,7 +15,7 @@ Return a list of facts in the following format:
 """
 
 def extract_facts(stories: str, spec: str) -> str:
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
 
     with with_streaming_step("Extracting general facts...") as (input_tokens, output_tokens):
         content = f"<spec>\n{spec}\n</spec>\n<stories>\n{stories}\n</stories>"

@@ -1,10 +1,10 @@
 import os
 import subprocess
 import sys
-import anthropic
 import json
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from colors import Colors
+import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_step
 
@@ -189,7 +189,7 @@ def fix_issues(project_path: str, test_file_path: str, test_code: str, error_out
     print(f"   Error output length: {len(error_output)} characters")
     print(f"   Message history length: {len(message_history) if message_history else 0} messages")
 
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
 
     if test_file_path.find(project_path) != 0:
         raise ValueError(f"Test file path {test_file_path} is not a child of project path {project_path}")
@@ -327,6 +327,10 @@ Please use the tools to analyze the project structure, identify what's causing t
         except Exception as e:
             error_msg = f"Error during issue fixing: {str(e)}"
             print(f"\n{Colors.BRIGHT_RED}❌ Exception in iteration {iteration + 1}: {error_msg}{Colors.END}")
+
+            import traceback
+            traceback.print_exc()
+
             return False, error_msg, updated_test_code
 
     print(f"\n{Colors.BRIGHT_RED}⏰ Maximum iterations ({max_iterations}) reached while trying to fix issues{Colors.END}")

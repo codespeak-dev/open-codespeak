@@ -1,9 +1,7 @@
 import json
-import sys
-import anthropic
-import inquirer
 from colors import Colors
 from data_serializer import json_file
+import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
@@ -63,7 +61,7 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
     Uses Claude to extract a list of Django models and their fields from the prompt.
     Returns a list of Entity objects with fields and relationships.
     """
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
 
     with with_streaming_step("Figuring out the data model...") as (input_tokens, output_tokens):
         response_text = ""

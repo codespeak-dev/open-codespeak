@@ -1,9 +1,9 @@
 import os
-import anthropic
-from typing import Dict, Any, Optional
+from typing import Optional
 from colors import Colors
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
+import llm_cache
 
 
 DATA_MODEL_TESTS_SYSTEM_PROMPT = """You are an expert Django developer. Given Django views.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
@@ -34,7 +34,7 @@ def read_views_file(project_path: str) -> str:
 
 def generate_data_model_tests(views_content: str) -> str:
     """Use Claude to generate data model tests based on views.py"""
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
 
     with with_streaming_step("Generating data model tests with Claude...") as (input_tokens, output_tokens):
         response_text = ""

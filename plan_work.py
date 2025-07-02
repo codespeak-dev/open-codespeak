@@ -1,8 +1,5 @@
 from typing import Dict
-import anthropic
-import os
-import re
-from colors import Colors
+import llm_cache
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
@@ -35,7 +32,7 @@ The output will be parsed by XML parser. It must be valid XML.
 """
 
 def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
-    client = anthropic.Anthropic()
+    client = llm_cache.Anthropic()
 
     with with_streaming_step("Planning work...") as (input_tokens, output_tokens):
         response_text = ""
