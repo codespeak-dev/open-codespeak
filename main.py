@@ -38,7 +38,7 @@ def main():
 
     start_from_argument_group = parser.add_mutually_exclusive_group()
     start_from_argument_group.add_argument('--start', help='Start from a specific phase. Only works in incremental mode.')
-    start_from_argument_group.add_argument('--restart-last-failed', help='Continue from the last failed phase. Only works in incremental mode.')
+    start_from_argument_group.add_argument('--restart-last-failed', action='store_true', help='Continue from the last failed phase. Only works in incremental mode.')
     start_from_argument_group.add_argument('--next-round', action='store_true', help='Start next round of incremental compilation. Only works in incremental mode, and only if the last round was successful.')
 
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')

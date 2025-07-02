@@ -185,7 +185,7 @@ retry_project() {
         echo "Starting from phase: $phase_name"
         ./codespeak --incremental "$project_dir" --start "$phase_name"
     else
-        ./codespeak --incremental "$project_dir --restart-last-failed"
+        ./codespeak --incremental "$project_dir" --restart-last-failed
     fi
 }
 
