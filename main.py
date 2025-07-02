@@ -51,7 +51,7 @@ def main():
         init = Init({
             "project_path": project_path,
         }, {
-            "spec": text_file("spec.md"),
+            "spec": text_file("spec.processed.md"),
         })
 
         if args.start:
@@ -84,7 +84,7 @@ def main():
             "project_path": project_path,
             "project_name": os.path.basename(project_path),
         }, {
-            "spec": text_file("spec.md"),
+            "spec": text_file("spec.processed.md"),
         })
 
         incremental_mode = IncrementalMode.clean()

@@ -48,9 +48,6 @@ class ExtractFacts(Phase):
     def run(self, state: State, context: Optional[Context] = None) -> dict:
         stories = state.get("stories", "")
         spec = state["spec"]
-        if spec == "spec.md":
-            print(f"spec: {spec} bug detected!")
-            exit(0)
 
         verbose = context.verbose if context else False
 

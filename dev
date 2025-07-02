@@ -90,7 +90,7 @@ new_project() {
     git init "$project_dir"
     
     # Copy spec file
-    cp "$specfile" "$project_dir/spec_user.md"
+    cp "$specfile" "$project_dir/spec.md"
 
     # First commits
     (
@@ -100,8 +100,8 @@ new_project() {
         git commit -m "Initial commit" --author="Codespeak <gen@codespeak.dev>" --allow-empty
 
         # Commit the copied spec file to git
-        git add spec_user.md
-        git commit -m "Add spec_user.md" -m "Initial spec file for project" --author="Codespeak <gen@codespeak.dev>"
+        git add spec.md
+        git commit -m "Add spec.md" -m "Initial spec file for project" --author="Codespeak <gen@codespeak.dev>"
     )
     
     # Set as current project
@@ -110,7 +110,7 @@ new_project() {
     echo "Project created: $project_dir"
     echo "Current project set to: $project_dir"
 
-    local codespeak_args=("$project_dir/spec_user.md" "--target-dir" "$project_dir")
+    local codespeak_args=("$project_dir/spec.md" "--target-dir" "$project_dir")
     
     # Add --dry-run if specified
     if [[ "$dry_run" == "true" ]]; then
@@ -271,21 +271,21 @@ change_spec() {
         exit 1
     fi
     
-    local spec_file="$current/spec_user.md"
+    local spec_file="$current/spec.md"
     if [[ ! -f "$spec_file" ]]; then
-        echo "Error: spec_user.md file not found in project directory"
+        echo "Error: spec.md file not found in project directory"
         exit 1
     fi
     
     echo "" >> "$spec_file"
     echo "new spec line" >> "$spec_file"
-    echo "Added new line to spec_user.md"
+    echo "Added new line to spec.md"
     
     # Commit the change
     local original_dir=$(pwd)
     cd "$current"
-    git add spec_user.md
-    git commit -m "Change spec_user.md"
+    git add spec.md
+    git commit -m "Change spec.md"
     cd "$original_dir"
     echo "Committed spec change"
 }
