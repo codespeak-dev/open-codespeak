@@ -11,6 +11,7 @@ from colors import Colors
 from phase_manager import State, Phase, Context
 from google import genai
 from google.genai import types as gemini_types
+from tree_printer import tree_section, tree_info
 
 # Tool definitions constant for reuse
 TOOLS_DEFINITIONS = [
@@ -353,8 +354,8 @@ class ImplementationAgent:
             if truncated:
                 status_msg += " [TRUNCATED]"
 
-            print(f"{Colors.BRIGHT_GREEN}⏺{Colors.END} Read({file_path})")
-            print(f"  ⎿  Read {status_msg}")
+            tree_section(f"Read({file_path})", Colors.BRIGHT_GREEN)
+            tree_info(f"Read {status_msg}")
             self.history.append(f"Read file: {file_path} ({len(lines)} lines)")
             return display_content
 
