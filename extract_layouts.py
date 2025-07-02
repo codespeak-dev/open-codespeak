@@ -1,5 +1,6 @@
 from typing import Dict, Optional
 import anthropic
+import json
 from anthropic.types import ToolParam
 from colors import Colors
 from data_serializer import text_file
@@ -52,7 +53,7 @@ LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
     )
 ]
 
-def extract_layouts_with_claude(stories: str, spec: str) -> str:
+def extract_layouts_with_claude(stories: str, spec: str) -> list[dict]:
     client = anthropic.Anthropic()
 
     with with_streaming_step("Planning layouts...") as (input_tokens, output_tokens):
@@ -90,14 +91,9 @@ def extract_layouts_with_claude(stories: str, spec: str) -> str:
                             layouts_data = content_block.input.get('layouts', [])
                         break
 
-        # Convert to readable format
-        result = ""
-        for layout in layouts_data:
-            result += f"Layout: {layout['name']}\n"
-            result += f"Description: {layout['description']}\n"
-            result += f"Style: {layout['style']}\n\n"
+        return layouts_data
 
-        return result.strip()
+        # return result.strip()
 
 class ExtractLayouts(Phase):
     def run(self, state: State, context: Optional[Context] = None) -> dict:
@@ -109,17 +105,11 @@ class ExtractLayouts(Phase):
 
         if verbose:
             print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned Layouts:{Colors.END}")
-            print(layouts)
+            print(json.dumps(layouts, indent=2))
         else:
-            # Count layouts by counting "Layout:" occurrences
-            layout_count = layouts.count("Layout:")
+            layout_count = len(layouts)
             print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned {layout_count} layouts{Colors.END}")
 
         return {
             "layouts": layouts
-        }
-    
-    def get_state_schema_entries(self) -> Dict[str, dict]:
-        return {
-            "layouts": text_file("layouts.txt")
         }
