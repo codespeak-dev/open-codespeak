@@ -269,22 +269,94 @@ class ImplementationAgent:
 
         return [gemini_types.Tool(function_declarations=function_declarations)]
 
-    def list_files(self, path: str):
-        """List files in a directory"""
-        print(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Listing files in: {path}")
-        full_path = os.path.join(self.project_path, path) if not os.path.isabs(path) else path
-        print(f"  Full path: {full_path}")
+    # File patterns to ignore when listing directories
+    IGNORED_PATTERNS = [
+        '*.pyc',
+        '*.pyo',
+        '__pycache__',
+        '.DS_Store'
+    ]
 
+    def should_ignore_file(self, filename: str) -> bool:
+        """Check if a file should be ignored based on ignore patterns"""
+        import fnmatch
+        for pattern in self.IGNORED_PATTERNS:
+            if fnmatch.fnmatch(filename, pattern):
+                return True
+        return False
+
+    def list_files(self, path: str):
+        """List files in a directory with proper validation and formatting"""
+        print(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Listing files in: {path}")
+
+        full_path = os.path.join(self.project_path, path) if not os.path.isabs(path) else path
         try:
+            if not os.path.exists(full_path):
+                error_msg = f"Error: Directory not found or inaccessible: {path}"
+                print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
+                self.history.append(error_msg)
+                return {"success": False, "error": error_msg}
+
+            if not os.path.isdir(full_path):
+                error_msg = f"Error: Path is not a directory: {path}"
+                print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
+                self.history.append(error_msg)
+                return {"success": False, "error": error_msg}
+
             files = os.listdir(full_path)
-            print(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} Found {len(files)} files: {files}")
-            self.history.append(f"Listed files in {path}: {files}")
-            return files
+            entries = []
+
+            if len(files) == 0:
+                result_msg = f"Directory {path} is empty."
+                print(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} {result_msg}")
+                self.history.append(f"Listed files in {path}: empty directory")
+                return {"success": True, "result": result_msg}
+
+            for file in files:
+                if self.should_ignore_file(file):
+                    continue
+
+                file_full_path = os.path.join(full_path, file)
+                
+                try:
+                    stats = os.stat(file_full_path)
+                    is_dir = os.path.isdir(file_full_path)
+                    entries.append({
+                        'name': file,
+                        'is_directory': is_dir,
+                        'size': 0 if is_dir else stats.st_size,
+                    })
+                except Exception as e:
+                    # Log error internally but don't fail the whole listing
+                    print(f"  Warning: Error accessing {file_full_path}: {e}")
+
+            # Sort entries (directories first, then alphabetically)
+            entries.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
+
+            # Create formatted content for LLM
+            directory_content = []
+            for entry in entries:
+                prefix = '[DIR] ' if entry['is_directory'] else ''
+                directory_content.append(f"{prefix}{entry['name']}")
+
+            result_message = f"Directory listing for {path}:\n" + '\n'.join(directory_content)
+            display_message = f"Listed {len(entries)} item(s)."
+
+            print(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} {display_message}")
+            self.history.append(f"Listed files in {path}: {len(entries)} items")
+            
+            return {
+                "success": True, 
+                "result": result_message,
+                "display": display_message,
+                "entries": entries
+            }
+
         except Exception as e:
-            error_msg = f"Error listing files in {path}: {str(e)}"
+            error_msg = f"Error listing directory: {str(e)}"
             print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
             self.history.append(error_msg)
-            return []
+            return {"success": False, "error": error_msg}
 
     def read_file(self, file_path: str, offset: int | None = None, limit: int | None = None):
         """Read contents of a file with optional offset and limit"""
@@ -575,7 +647,7 @@ class ImplementationAgent:
         try:
             if tool_name == "list_files":
                 result = self.list_files(tool_input["path"])
-                return {"success": True, "result": result}
+                return result
             elif tool_name == "read_file":
                 offset = tool_input.get("offset")
                 limit = tool_input.get("limit")
