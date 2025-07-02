@@ -7,7 +7,25 @@ from data_serializer import json_file
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
+
+SYSTEM_PROMPT = """
+You are an expert Django developer and an excellent data modeler. Given a user prompt, extract a list of Django models and their fields.
+Remember, it should only be the entities that are actually storing the data in the database.
+
+Return a JSON array of objects, each with:
+- 'name' (model name)
+- 'fields' (object mapping field names to Django field types, e.g. 'CharField(max_length=100)')
+- 'relationships' (object mapping field names to relationship info with 'type', 'related_to', 'related_name' keys)
+For relationships, use types like 'ForeignKey', 'ManyToManyField', 'OneToOneField'.
+
+IMPORTANT: If there's an intermediate model that connects two other models (like Appointment with Patient and Doctor, or like LineItem with Order and Product),
+do NOT create direct ManyToManyField relationships between the connected models. 
+The intermediate model's ForeignKey relationships are sufficient to represent the many-to-many connection.
+
+Example: {"name": "Post", "fields": {"title": "CharField(max_length=100)"}, "relationships": {"author": {"type": "ForeignKey", "related_to": "User", "related_name": "posts"}}}
+Do not include any explanation, only valid JSON.
+"""
 
 class EntityField(BaseModel):
     name: str
@@ -45,30 +63,17 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
     Returns a list of Entity objects with fields and relationships.
     """
     client = anthropic.Anthropic()
-    system_prompt = (
-        "You are an expert Django developer and an excellent data modeler. Given a user prompt, extract a list of Django models and their fields. "
-        "Return a JSON array of objects, each with:"
-        "- 'name' (model name)"
-        "- 'fields' (object mapping field names to Django field types, e.g. 'CharField(max_length=100)')"
-        "- 'relationships' (object mapping field names to relationship info with 'type', 'related_to', 'related_name' keys)"
-        "For relationships, use types like 'ForeignKey', 'ManyToManyField', 'OneToOneField'."
-        "IMPORTANT: If there's an intermediate model that connects two other models (like Appointment with Patient and Doctor, or like LineItem with Order and Product), "
-        "do NOT create direct ManyToManyField relationships between the connected models. "
-        "The intermediate model's ForeignKey relationships are sufficient to represent the many-to-many connection."
-        "Example: {\"name\": \"Post\", \"fields\": {\"title\": \"CharField(max_length=100)\"}, \"relationships\": {\"author\": {\"type\": \"ForeignKey\", \"related_to\": \"User\", \"related_name\": \"posts\"}}}"
-        "Do not include any explanation, only valid JSON."
-    )
 
     with with_streaming_step("Figuring out the data model...") as (input_tokens, output_tokens):
         response_text = ""
         # Count input tokens from system prompt and user prompt
-        input_tokens[0] = len((system_prompt + prompt).split())
+        input_tokens[0] = len((SYSTEM_PROMPT + prompt).split())
 
         with client.messages.stream(
             model="claude-3-7-sonnet-latest",
             max_tokens=10000,
             temperature=0,
-            system=system_prompt,
+            system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}]
         ) as stream:
             for text in stream.text_stream:
