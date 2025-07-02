@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 import anthropic
 import os
 import re
@@ -69,7 +69,7 @@ def read_models_file(project_path: str) -> str:
 class PlanScreens(Phase):
     description = "Generate a set of UI screens to implement (stories.txt)"
 
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Optional[Context] = None) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]
 
