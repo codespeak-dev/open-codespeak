@@ -188,6 +188,11 @@ class PhaseManager:
             if self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND:
                 print(f"    Spec diff: {self.current_state.get('spec_diff')}")
 
+        if self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND and self.current_state.get("spec_diff") == "":
+            print(f"{Colors.BRIGHT_GREEN}Nothing to do: no spec diff found{Colors.END}")
+            # todo(dsavvinov): improve this
+            exit(0)
+
         # Run the phases that need to be run
         for phase in phases_to_run:
             self.current_phase = phase        
