@@ -6,7 +6,7 @@ from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 
 
-INTEGRATION_TEST_SYSTEM_PROMPT = """You are an expert Django developer. Given Django views.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
+DATA_MODEL_TESTS_SYSTEM_PROMPT = """You are an expert Django developer. Given Django views.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
 1. Import from django.test import TestCase
 2. Import the models from web.models
 3. Import any other necessary Django modules (like datetime, uuid, etc.)
@@ -32,20 +32,20 @@ def read_views_file(project_path: str) -> str:
         return f.read()
 
 
-def generate_integration_tests(views_content: str) -> str:
-    """Use Claude to generate integration tests based on views.py"""
+def generate_data_model_tests(views_content: str) -> str:
+    """Use Claude to generate data model tests based on views.py"""
     client = anthropic.Anthropic()
 
-    with with_streaming_step("Generating integration tests with Claude...") as (input_tokens, output_tokens):
+    with with_streaming_step("Generating data model tests with Claude...") as (input_tokens, output_tokens):
         response_text = ""
         # Count input tokens from system prompt and views content
-        input_tokens[0] = len((INTEGRATION_TEST_SYSTEM_PROMPT + views_content).split())
+        input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + views_content).split())
 
         with client.messages.stream(
             model="claude-3-5-sonnet-latest",
             max_tokens=8192,
             temperature=0,
-            system=INTEGRATION_TEST_SYSTEM_PROMPT,
+            system=DATA_MODEL_TESTS_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": views_content}]
         ) as stream:
             for text in stream.text_stream:
@@ -57,7 +57,7 @@ def generate_integration_tests(views_content: str) -> str:
 
 def save_test_to_project(test_code: str, project_path: str) -> str:
     """Save the generated test code to the Django project's test directory"""
-    test_file_path = os.path.join(project_path, "web", "test_integration.py")
+    test_file_path = os.path.join(project_path, "web", "test_data_model.py")
 
     with open(test_file_path, 'w') as f:
         f.write(test_code)
@@ -65,8 +65,8 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
     return test_file_path
 
 
-class GenerateIntegrationTests(Phase):
-    description = "Generates integration tests for the Django project"
+class GenerateDataModelTests(Phase):
+    description = "Generates data model tests for the Django project"
 
     def run(self, state: State, context: Optional[Context] = None) -> dict:
         # Skip if entities are empty
@@ -79,9 +79,9 @@ class GenerateIntegrationTests(Phase):
 
         views_content = read_views_file(project_path)
 
-        test_code = generate_integration_tests(views_content)
+        test_code = generate_data_model_tests(views_content)
         test_file_path = save_test_to_project(test_code, project_path)
 
         return {
-            "integration_test_path": test_file_path
+            "data_model_test_path": test_file_path
         }

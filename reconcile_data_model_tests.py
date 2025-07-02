@@ -8,8 +8,7 @@ from colors import Colors
 from phase_manager import State, Phase, Context
 from with_step import with_step
 
-
-FIX_ISSUES_SYSTEM_PROMPT = """You are an expert Django developer with access to tools to analyze and fix code. Given a Django project with failing integration tests, use the available tools to:
+FIX_ISSUES_SYSTEM_PROMPT = """You are an expert Django developer with access to tools to analyze and fix code. Given a Django project with failing data model tests, use the available tools to:
 
 1. Read and analyze the test code and error output
 2. Determine whether the issue is with the test code itself or the application logic
@@ -21,12 +20,19 @@ FIX_ISSUES_SYSTEM_PROMPT = """You are an expert Django developer with access to 
 Use the tools methodically to understand the codebase and make comprehensive fixes that follow Django best practices. Consider the conversation history to avoid repeating the same mistakes."""
 
 
-def run_integration_tests(test_code: str, project_path: str) -> Tuple[bool, str]:
-    """Save test code to project and run it using unittest"""
+def run_tests(test_file_path: str, project_path: str) -> Tuple[bool, str]:
+    """Run test using unittest"""
+
+    if test_file_path.find(project_path) != 0:
+        raise ValueError(f"Test file path {test_file_path} is not a child of project path {project_path}")
+    test_file_relative_path = test_file_path.removeprefix(project_path)
+
+    test_dotted_notation = test_file_relative_path.removeprefix("/").removesuffix(".py").replace("/", ".")
+
     try:
         # Run the Django test using manage.py from the project directory
         result = subprocess.run(
-            [sys.executable, 'manage.py', 'test', 'web.test_integration', '--verbosity=2'],
+            [sys.executable, 'manage.py', 'test', test_dotted_notation, '--verbosity=2'],
             cwd=project_path,
             capture_output=True,
             text=True,
@@ -45,10 +51,10 @@ def run_integration_tests(test_code: str, project_path: str) -> Tuple[bool, str]
         return False, f"Exception during test execution: {str(e)}"
 
 
-def read_current_test_code(test_file_path: str) -> str:
-    """Read the current test code from the file"""
+def read_file(file_path: str) -> str:
+    """Read the file"""
     try:
-        with open(test_file_path, 'r') as f:
+        with open(file_path, 'r') as f:
             return f.read()
     except Exception as e:
         return f"Error reading test file: {str(e)}"
@@ -175,7 +181,7 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) 
         return error_msg
 
 
-def fix_issues(project_path: str, test_code: str, error_output: str, message_history: List = None) -> Tuple[bool, str, str]:
+def fix_issues(project_path: str, test_file_path: str, test_code: str, error_output: str, message_history: List = None) -> Tuple[bool, str, str]:
     """Use Claude with tools to fix issues revealed by integration tests"""
     print(f"\n{Colors.BRIGHT_YELLOW}🔍 Starting automated issue fixing process{Colors.END}")
     print(f"   Project path: {project_path}")
@@ -184,6 +190,10 @@ def fix_issues(project_path: str, test_code: str, error_output: str, message_his
     print(f"   Message history length: {len(message_history) if message_history else 0} messages")
 
     client = anthropic.Anthropic()
+
+    if test_file_path.find(project_path) != 0:
+        raise ValueError(f"Test file path {test_file_path} is not a child of project path {project_path}")
+    test_file_relative_path = test_file_path.removeprefix(project_path).removeprefix("/")
 
     tools = [
         {
@@ -244,7 +254,7 @@ def fix_issues(project_path: str, test_code: str, error_output: str, message_his
     messages = message_history.copy() if message_history else []
     messages.append({
         "role": "user", 
-        "content": f"""I have a Django project with failing integration tests. Here's the context:
+        "content": f"""I have a Django project with failing data model tests. Here's the context:
 
 Test code:
 {test_code}
@@ -298,7 +308,7 @@ Please use the tools to analyze the project structure, identify what's causing t
                         })
 
                         # Check if test code was updated
-                        if block.name == "write_file" and block.input.get("file_path") == "web/test_integration.py":
+                        if block.name == "write_file" and block.input.get("file_path") == test_file_relative_path:
                             updated_test_code = block.input.get("content", test_code)
                             print(f"   📝 Test code has been updated!")
 
@@ -323,8 +333,8 @@ Please use the tools to analyze the project structure, identify what's causing t
     return False, "Maximum iterations reached while trying to fix issues", updated_test_code
 
 
-class ReconcileIntegrationTests(Phase):
-    description = "Fix failing integration tests"
+class ReconcileDataModelTests(Phase):
+    description = "Fix failing data model tests"
 
     def run(self, state: State, context: Optional[Context] = None) -> dict:
         entities = state.get("entities", [])
@@ -333,7 +343,7 @@ class ReconcileIntegrationTests(Phase):
             return {}
 
         project_path = state["project_path"]
-        test_file_path = state["integration_test_path"]
+        test_file_path = state["data_model_test_path"]
 
         # Initialize message history for the agent conversation
         message_history = []
@@ -345,21 +355,21 @@ class ReconcileIntegrationTests(Phase):
         })
         message_history.append({
             "role": "assistant", 
-            "content": f"I'll run the integration tests and fix any issues that arise."
+            "content": f"I'll run the data model tests and fix any issues that arise."
         })
 
         max_retries = 8
         attempt = 0
 
-        with with_step("Running integration tests and fixing issues..."):
+        with with_step("Running data model tests and fixing issues..."):
             while attempt < max_retries:
                 attempt += 1
-                print(f"\n{Colors.BRIGHT_CYAN}Running integration tests (attempt {attempt}/{max_retries})...{Colors.END}")
+                print(f"\n{Colors.BRIGHT_CYAN}Running data model tests (attempt {attempt}/{max_retries})...{Colors.END}")
 
                 # Read the current test code from file to ensure we have the latest version
-                test_code = read_current_test_code(test_file_path)
+                test_code = read_file(test_file_path)
 
-                success, output = run_integration_tests(test_code, project_path)
+                success, output = run_tests(test_file_path, project_path)
                 print(f"Test execution result: {'SUCCESS' if success else 'FAILED'}")
 
                 if success:
@@ -388,7 +398,7 @@ class ReconcileIntegrationTests(Phase):
                     if attempt < max_retries:
                         print(f"\n{Colors.BRIGHT_YELLOW}Analyzing and fixing issues...{Colors.END}")
 
-                        fix_success, fix_message, updated_test_code = fix_issues(project_path, test_code, output, message_history)
+                        fix_success, fix_message, updated_test_code = fix_issues(project_path, test_file_path, test_code, output, message_history)
 
                         if fix_success:
                             print(f"{Colors.BRIGHT_GREEN}Successfully applied fixes{Colors.END}")

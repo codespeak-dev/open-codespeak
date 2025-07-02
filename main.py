@@ -9,8 +9,8 @@ from extract_entities import ExtractEntities
 from generate_django_project import GenerateDjangoProject
 from makemigrations import MakeMigrations
 from migrate import Migrate
-from generate_integration_tests import GenerateIntegrationTests
-from reconcile_integration_tests import ReconcileIntegrationTests
+from generate_data_model_tests import GenerateDataModelTests
+from reconcile_data_model_tests import ReconcileDataModelTests
 from plan_screens import PlanScreens
 from extract_layouts import ExtractLayouts
 from extract_facts import ExtractFacts
@@ -105,8 +105,8 @@ def main():
             GenerateDjangoProject(),
             MakeMigrations(),
             Migrate(),
-            GenerateIntegrationTests(),
-            ReconcileIntegrationTests(),
+            GenerateDataModelTests(),
+            ReconcileDataModelTests(),
             PlanScreens(),
             ExtractFacts(),
             ExtractLayouts(),
