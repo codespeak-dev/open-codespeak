@@ -36,6 +36,7 @@ def main():
     parser.add_argument('--incremental', help='Path to the project output dir')
     parser.add_argument('--start', help='Start from a specific phase. Only works in incremental mode.')
     parser.add_argument('--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('--dry-run', action='store_true', help='Dry run phases (no requests to LLMs)')
     args = parser.parse_args()
 
     if args.incremental:
@@ -70,7 +71,7 @@ def main():
         })
 
     git_helper = GitHelper(project_path)
-    context = Context(git_helper=git_helper, verbose=args.verbose)
+    context = Context(git_helper=git_helper, dry_run=args.dry_run, verbose=args.verbose)
 
     head_hash = git_helper.get_head_hash()
     if not head_hash:

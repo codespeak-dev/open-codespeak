@@ -13,9 +13,10 @@ from data_serializer import decode_data, encode_data, json_file, validate_schema
 from git_helper import GitHelper
 
 class Context:
-    def __init__(self, git_helper: GitHelper, verbose: bool = False):
+    def __init__(self, git_helper: GitHelper, dry_run: bool = False, verbose: bool = False):
         self.verbose = verbose
         self.git_helper = git_helper
+        self.dry_run = dry_run
 
 class State:
     def __init__(self, data: dict | None = None, _internal_data: dict | None = None):
@@ -66,6 +67,8 @@ class Phase:
         return self.__class__.__name__
     description: str = ""
 
+    dry_run_aware = False # Allow running in dry run mode
+
     def __init__(self):
         pass
 
@@ -75,9 +78,12 @@ class Phase:
 
     def get_state_schema_entries(self) -> Dict[str, dict]:
         return {}
+    
+    
 
 class Init(Phase):
     description = "initialize project"
+    dry_run_aware = True
 
     def __init__(self, initial_state: dict | None = None, state_schema: Dict[str, dict] | None = None):
         self.initial_state = initial_state or {}
@@ -215,10 +221,16 @@ class PhaseManager:
             try:
                 self.context.git_helper.ensure_clean_working_tree()
                 
-                print(f"{Colors.BRIGHT_YELLOW}Running phase: {self.current_phase.id}{Colors.END}")
-                delta = phase.run(self.current_state, self.context)
-                print(f"{Colors.BRIGHT_GREEN}Finished phase: {self.current_phase.id}{Colors.END}")
+                dry_run_suffix_if_any = " (dry run)" if self.context.dry_run else ""
 
+                print(f"{Colors.BRIGHT_YELLOW}Running phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
+                
+                if self.context.dry_run and not self.current_phase.dry_run_aware:
+                    delta = { f"phase_{self.current_phase.id}": "dry-run" }
+                else:
+                    delta = phase.run(self.current_state, self.context)
+
+                print(f"{Colors.BRIGHT_GREEN}Finished phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
 
                 if not isinstance(delta, dict):
                     raise StateMachineError(f"Phase {self.current_phase.id} returned a non-dict object")

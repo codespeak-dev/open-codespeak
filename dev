@@ -42,6 +42,7 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  new <specfile>     Create new project from spec file"
+    echo "  new <specfile> --dry-run  Create new project from spec file in dry run mode (no requests to LLMs)"
     echo "  current            Show current project directory"
     echo "  retry [--project_dir path] [PhaseName]  Retry from specific phase"
     echo "  clear              Clear all test outputs"
@@ -62,6 +63,11 @@ new_project() {
     fi
     
     local specfile="$1"
+    local dry_run=false
+
+    if [[ "$2" == "--dry-run" ]]; then
+        dry_run=true
+    fi
     
     if [[ ! -f "$specfile" ]]; then
         echo "Error: specfile '$specfile' not found"
@@ -101,10 +107,18 @@ new_project() {
     
     echo "Project created: $project_dir"
     echo "Current project set to: $project_dir"
+
+    local codespeak_args=("$project_dir/spec.md" "--target-dir" "$project_dir")
+    
+    # Add --dry-run if specified
+    if [[ "$dry_run" == "true" ]]; then
+        codespeak_args+=("--dry-run")
+    fi
     
     # Run codespeak compile
     echo "Running codespeak..."    
-    ./codespeak "$project_dir/spec.md" --target-dir "$project_dir"
+    
+    ./codespeak "${codespeak_args[@]}"
 }
 
 # Function to show current project
