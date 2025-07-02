@@ -35,7 +35,7 @@ class GitHelper:
             print(f"Error staging changes: {add_stderr}")
             return
 
-        commit_returncode, _, commit_stderr = self._run_command(['git', 'commit', '-m', title, '-m', description])
+        commit_returncode, _, commit_stderr = self._run_command(['git', 'commit', '-m', title, '-m', description, '--author="Codespeak <gen@codespeak.dev>"'])
         if commit_returncode != 0:
             raise RuntimeError(f"Error committing changes: {commit_stderr}")
     
