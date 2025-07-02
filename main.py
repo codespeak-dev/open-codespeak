@@ -125,6 +125,7 @@ def main():
     project_path = state["project_path"]
 
     print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
+    print(f"Start Django server via: python {project_path}/manage.py runserver")
 
 if __name__ == "__main__":
     try:
