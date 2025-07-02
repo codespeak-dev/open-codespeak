@@ -36,6 +36,7 @@
 - server-side validations are performed
 - event id is generated randomly
 - cancel does not create an event, redirects to main page
+- UTF8 is supported where applicable
 
 # edit event page
 - when opening for non-existing or inaccessible event id, graceful "not found or access denied" page is shown
@@ -104,3 +105,7 @@
 - filter by name and status works
 - allows to click on each invitation
 
+# persistence
+
+- server state is persistent across restarts
+- user session cookie is valid after server restart

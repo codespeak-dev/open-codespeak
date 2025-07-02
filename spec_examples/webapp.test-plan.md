@@ -40,6 +40,7 @@
 - light/dark mode
 - cookie popup
 - background refresh for readonly pages (AJAX)
+- browser developer console does not show errors / warnings
 
 # common cross-platform / browser support
 - mobile browser
