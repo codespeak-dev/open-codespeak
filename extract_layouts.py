@@ -7,9 +7,13 @@ from data_serializer import text_file
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 
-PLAN_LAYOUTS_SYSTEM_PROMPT = """You are a senior web developer who specialized in Django.
-As input you have a list of user stories and screens that need to be implemented in an app.
-Return a list of base layouts that will be used to implement the app."""
+PLAN_LAYOUTS_SYSTEM_PROMPT = """
+You are a senior web developer who specialized in Django.
+As input you have a specification and list of user stories and screens that need to be implemented in an app.
+Return a list of layouts that will be used to implement the app.
+These layouts will be used as Django templates.
+Think through whether one layout is enough or this app needs multiple layout templates that are different from each other.
+"""
 
 # Tool definitions constant
 LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
@@ -72,6 +76,10 @@ def extract_layouts_with_claude(stories: str, spec: str) -> list[dict]:
                     "content": content
                 }
             ],
+            thinking={
+                "type": "enabled",
+                "budget_tokens": 4000
+            },
             tools=LAYOUT_TOOLS_SCHEMA
         )
         
