@@ -7,6 +7,7 @@ from colors import Colors
 from data_serializer import text_file
 from extract_entities import ExtractEntities
 from generate_django_project import GenerateDjangoProject
+from generate_models import GenerateModels
 from makemigrations import MakeMigrations
 from migrate import Migrate
 from generate_data_model_tests import GenerateDataModelTests
@@ -101,8 +102,9 @@ def main():
     pm = PhaseManager(
         [
             init,
-            ExtractEntities(),
             GenerateDjangoProject(),
+            ExtractEntities(),
+            GenerateModels(),
             MakeMigrations(),
             Migrate(),
             GenerateDataModelTests(),

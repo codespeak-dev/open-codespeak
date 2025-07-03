@@ -9,9 +9,16 @@ from extract_entities import Entity
 from phase_manager import State, Phase, Context
 
 
-def generate_django_project_from_template(project_path: str, project_name: str, entities: List[Entity], app_name: str = "web"):
+def generate_django_project_from_template(project_path: str, project_name: str, app_name: str = "web"):
     template_dir = "app_template"
-    shutil.copytree(template_dir, project_path, dirs_exist_ok=True)
+    
+    # Copy template directory but exclude model-related files
+    def ignore_model_templates(dir, files):
+        if os.path.basename(dir) == app_name:
+            return ['models.py', 'views.py']
+        return []
+    
+    shutil.copytree(template_dir, project_path, dirs_exist_ok=True, ignore=ignore_model_templates)
 
     shutil.move(
         os.path.join(project_path, '_project_'),
@@ -24,7 +31,6 @@ def generate_django_project_from_template(project_path: str, project_name: str, 
         'project_name': project_name,
         'app_name': app_name,
         'secret_key': secret_key,
-        'entities': entities
     }
 
     def render_and_write(template_path, output_path):
@@ -40,8 +46,6 @@ def generate_django_project_from_template(project_path: str, project_name: str, 
     files_to_template = [
         # (template_path, output_path)
         (f'{project_name}/settings.py', os.path.join(project_settings_root, 'settings.py')),
-        (f'{app_name}/models.py', os.path.join(project_path, app_name, 'models.py')),
-        (f'{app_name}/views.py', os.path.join(project_path, app_name, 'views.py')),
         (f'{project_name}/asgi.py', os.path.join(project_settings_root, 'asgi.py')),
         (f'{project_name}/wsgi.py', os.path.join(project_settings_root, 'wsgi.py')),
         ('manage.py', os.path.join(project_path, 'manage.py')),
@@ -56,9 +60,8 @@ class GenerateDjangoProject(Phase):
     def run(self, state: State, context: Context = None) -> dict:
         project_name = state["project_name"]
         project_path = state["project_path"]
-        entities = state["entities"]
         print(f"Generating Django project in {project_path} with name {project_name}")
-        generate_django_project_from_template(project_path, project_name, entities, "web")
+        generate_django_project_from_template(project_path, project_name, "web")
         return {}
 
 
