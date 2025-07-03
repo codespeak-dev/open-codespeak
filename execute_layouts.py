@@ -112,9 +112,19 @@ class LayoutImplementationAgent:
                 "content": tool_results
             })
 
-    async def implement_layout(self, layout: str, facts: str):
+    async def implement_layout(self, layout: dict, facts: str):
         """Implement a layout by creating template files"""
-        prompt = f"<facts>{facts}</facts><layout>{layout}</layout>"
+        layout_name = layout["name"]
+        layout_description = layout["description"]
+        layout_style = layout["style"]
+
+        prompt = f"""<facts>{facts}</facts>
+<layout_name>{layout_name}</layout_name>
+<layout_description>{layout_description}</layout_description>
+<layout_style>{layout_style}</layout_style>
+
+Create a template file named templates/layouts/{layout_name}.html"""
+
         messages = [{"role": "user", "content": prompt}]
 
         await self.run_anthropic_conversation(messages)
@@ -124,7 +134,7 @@ class ExecuteLayouts(Phase):
         layouts = state["layouts"]
         facts = state["facts"]
         project_path = state["project_path"]
-        
+
         tree_section("Generate layouts")
 
         agent = LayoutImplementationAgent(project_path)
