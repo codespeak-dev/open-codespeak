@@ -1,4 +1,3 @@
-from typing import Dict
 import llm_cache
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
@@ -69,7 +68,7 @@ class PlanWork(Phase):
             "work": plan
         }
 
-    def get_state_schema_entries(self) -> Dict[str, dict]:
+    def get_state_schema_entries(self) -> dict[str, dict]:
         return {
             "work": text_file("work.txt")
         }

@@ -1,4 +1,3 @@
-from typing import Dict
 import llm_cache
 from colors import Colors
 from data_serializer import text_file
@@ -60,7 +59,7 @@ class ExtractFacts(Phase):
             "facts": facts
         }
     
-    def get_state_schema_entries(self) -> Dict[str, dict]:
+    def get_state_schema_entries(self) -> dict[str, dict]:
         return {
             "facts": text_file("facts.txt")
         }

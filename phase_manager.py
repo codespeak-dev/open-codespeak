@@ -6,7 +6,7 @@ import json
 import os
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from colors import Colors
 from data_serializer import decode_data, encode_data, json_file, validate_schema_entry
@@ -80,7 +80,7 @@ class Phase:
     def run(self, state: State, context: Context) -> dict:
         pass
 
-    def get_state_schema_entries(self) -> Dict[str, dict]:
+    def get_state_schema_entries(self) -> dict[str, dict]:
         return {}
     
     
@@ -89,14 +89,14 @@ class Init(Phase):
     description = "initialize project"
     dry_run_aware = True
 
-    def __init__(self, initial_state: dict | None = None, state_schema: Dict[str, dict] | None = None):
+    def __init__(self, initial_state: dict | None = None, state_schema: dict[str, dict] | None = None):
         self.initial_state = initial_state or {}
         self.state_schema = state_schema or {}
 
     def run(self, state: State, context: Context) -> dict:
         return self.initial_state
     
-    def get_state_schema_entries(self) -> Dict[str, dict]:
+    def get_state_schema_entries(self) -> dict[str, dict]:
         return self.state_schema
 
 class Done(Phase):
@@ -143,7 +143,7 @@ class PhaseManager:
         else:
             self.current_state[self.BRANCHED_FROM] = self.context.head_hash
 
-    def calculate_schema(self, phases: list[Phase]) -> Dict[str, dict]:
+    def calculate_schema(self, phases: list[Phase]) -> dict[str, dict]:
         BY_PHASE = "__by_phase"
 
         schema = {}

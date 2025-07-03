@@ -1,4 +1,3 @@
-from typing import Dict
 import os
 from data_serializer import text_file
 import llm_cache
@@ -77,7 +76,7 @@ class PlanScreens(Phase):
             "stories": stories
         }
     
-    def get_state_schema_entries(self) -> Dict[str, dict]:
+    def get_state_schema_entries(self) -> dict[str, dict]:
         return {
             "stories": text_file("stories.txt")
         }

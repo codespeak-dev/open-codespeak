@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 import json
-from typing import Dict, Any, List, Tuple
+from typing import Any, Tuple
 from colors import Colors
 import llm_cache
 from phase_manager import State, Phase, Context
@@ -60,7 +60,7 @@ def read_file(file_path: str) -> str:
         return f"Error reading test file: {str(e)}"
 
 
-def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) -> str:
+def execute_tool(tool_name: str, tool_input: dict[str, Any], project_path: str) -> str:
     """Execute a tool call for the issue fixing agent"""
     # Log tool call start
     print(f"{Colors.BRIGHT_YELLOW}🔧 TOOL CALL: {tool_name}{Colors.END}")

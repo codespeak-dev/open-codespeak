@@ -5,7 +5,6 @@ import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
-from typing import Dict
 from anthropic.types import ToolParam
 
 SYSTEM_PROMPT = """
@@ -174,7 +173,7 @@ class ExtractEntities(Phase):
             "entities": entities_data
         }
 
-    def get_state_schema_entries(self) -> Dict[str, dict]:
+    def get_state_schema_entries(self) -> dict[str, dict]:
         return {
             "entities": json_file("entities.json")
         }
