@@ -17,11 +17,11 @@ class CachedAnthropic:
     async_client: AsyncAnthropic
     base_dir: str
 
-    def __init__(self, base_dir: str, key_sanitizer: Sanitizer, cache_dir: str = None):
+    def __init__(self, base_dir: str, sanitizer: Sanitizer, cache_dir: str = None):
         self.client = Anthropic()
         self.async_client = AsyncAnthropic()
         self.base_dir = base_dir
-        self.cache = FileBasedCache(Path(cache_dir or DEV_CACHE_DIR), key_sanitizer=key_sanitizer)
+        self.cache = FileBasedCache(Path(cache_dir or DEV_CACHE_DIR), sanitizer=sanitizer)
         self.logger = logging.getLogger(CachedAnthropic.__class__.__qualname__)
         
     def create(self, **kwargs) -> Message:

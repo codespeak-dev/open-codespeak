@@ -8,6 +8,9 @@ import json
 class Sanitizer:
     def sanitize(self, text: str) -> str:
         return text
+    
+    def desanitize(self, text: str) -> str:
+        return text
 
 class Serializer:
     def __init__(self, sanitizer: Sanitizer = Sanitizer()):
@@ -57,6 +60,8 @@ class Serializer:
             return [self.deserialize_with_pydantic(item) for item in obj]
         elif isinstance(obj, tuple):
             return tuple(self.deserialize_with_pydantic(item) for item in obj)
+        elif isinstance(obj, str):
+            return self.sanitizer.desanitize(obj)
         else:
             return obj
     
@@ -98,12 +103,12 @@ class FileBasedCache:
     VERSION = (0, 0, 2)
     VERSION_STRING = ".".join(map(str, VERSION))
 
-    def __init__(self, cache_dir: Path, key_sanitizer: Sanitizer = Sanitizer()):
+    def __init__(self, cache_dir: Path, sanitizer: Sanitizer = Sanitizer()):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        self.key_serializer = Serializer(key_sanitizer)
-        self.value_serializer = Serializer()
+        self.key_serializer = Serializer(sanitizer)
+        self.value_serializer = self.key_serializer
 
         version_file = self.cache_dir.joinpath(".version")
         if not version_file.exists():

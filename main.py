@@ -113,7 +113,15 @@ def main():
         return
     
     key_sanitizer = SubstringBasedSanitizer([
-        (os.path.abspath(project_path), "[PROJECT_PATH]"),
+        (os.path.abspath(project_path), "$ABSOLUTE_PROJECT_PATH$"),
+        (project_path, "$PROJECT_PATH$"),
+        (os.path.basename(project_path), "$PROJECT_NAME$"),
+        (os.path.expanduser("~"), "$HOME_DIR$"),
+        (os.path.expanduser("."), "$CURRENT_DIR$"),
+    ])
+
+    key_sanitizer = SubstringBasedSanitizer([
+        (os.path.abspath(project_path), "[ABSOLUTE_PROJECT_PATH]"),
         (project_path, "[PROJECT_PATH]"),
         (os.path.basename(project_path), "[PROJECT_NAME]"),
         (os.path.expanduser("~"), "[HOME]"),
@@ -122,7 +130,7 @@ def main():
     context = Context(
         git_helper=git_helper, 
         incremental_mode=incremental_mode, 
-        anthropic_client = CachedAnthropic(base_dir=project_path, key_sanitizer=key_sanitizer),
+        anthropic_client = CachedAnthropic(base_dir=project_path, sanitizer=key_sanitizer),
         head_hash=head_hash, 
         dry_run=args.dry_run, 
         verbose=args.verbose)
