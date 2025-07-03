@@ -10,7 +10,7 @@ from extract_entities import ExtractEntities
 from generate_django_project import GenerateDjangoProject
 from generate_models import GenerateModels
 from llm_cache.anthropic_cached import CachedAnthropic
-from llm_cache.cache_utils import PathSanitizer
+from llm_cache.cache_utils import SubstringBasedSanitizer
 from makemigrations import MakeMigrations
 from migrate import Migrate
 from generate_data_model_tests import GenerateDataModelTests
@@ -111,12 +111,18 @@ def main():
     if not head_hash:
         logger.info(f"{Colors.BRIGHT_RED}Error: failed to get HEAD hash{Colors.END}")
         return
-
+    
+    key_sanitizer = SubstringBasedSanitizer([
+        (os.path.abspath(project_path), "[PROJECT_PATH]"),
+        (project_path, "[PROJECT_PATH]"),
+        (os.path.basename(project_path), "[PROJECT_NAME]"),
+        (os.path.expanduser("~"), "[HOME]"),
+    ])
 
     context = Context(
         git_helper=git_helper, 
         incremental_mode=incremental_mode, 
-        anthropic_client = CachedAnthropic(base_dir=project_path, key_sanitizer=PathSanitizer(project_path)),
+        anthropic_client = CachedAnthropic(base_dir=project_path, key_sanitizer=key_sanitizer),
         head_hash=head_hash, 
         dry_run=args.dry_run, 
         verbose=args.verbose)

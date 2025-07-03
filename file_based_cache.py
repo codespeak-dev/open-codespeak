@@ -1,4 +1,3 @@
-from abc import abstractmethod
 import hashlib
 from pathlib import Path
 import re
@@ -20,14 +19,14 @@ class Serializer:
             return {
                 "__pydantic_model_module": obj.__class__.__module__,
                 "__pydantic_model_name": obj.__class__.__name__,
-                "model_dump": obj.model_dump()
+                "model_dump": self.make_serializable(obj.model_dump(), is_key=is_key)
             }
         elif isinstance(obj, dict):
             return {self.make_serializable(k, is_key=True): self.make_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, (list, tuple)):
             return [self.make_serializable(item) for item in obj]
         elif hasattr(obj, '__dict__'):
-            return obj.__dict__
+            return self.make_serializable(obj.__dict__, is_key=is_key)
         elif isinstance(obj, str):
             return self.sanitizer.sanitize(obj)
         elif isinstance(obj, (int, float, bool)):
@@ -179,8 +178,31 @@ class FileBasedCache:
 
 
 if __name__ == "__main__":
-    import logging
-    logger = logging.getLogger("file_based_cache")
+    from llm_cache.cache_utils import SubstringBasedSanitizer
+    from anthropic.types.tool_use_block import ToolUseBlock
+    tub = ToolUseBlock(
+        **{
+              "id": "toolu_01XaSTkQbsBABbD4qtnRDs5J",
+              "input": {
+                "file_path": "31_helloworld/urls.py"
+              },
+              "name": "read_file",
+              "type": "tool_use"
+            }
+    )
+
+    print(type(tub))
+    print(tub.model_dump())
+    print(type(tub.input))
+    dict0 = Serializer(SubstringBasedSanitizer([("31_hello", "!!!!fuck")])).make_serializable([tub], is_key=True)
+    print(dict0)
+    xxx = Serializer().deserialize_with_pydantic(dict0)
+    print(xxx)
+    print(type(xxx))
+    # print(xxx.model_dump())
+    import sys
+    sys.exit()
+
     cache = FileBasedCache(Path("test_outputs/.test_llm_cache"))
     cache.set(cache.key("test"), "test")
     cache.set(cache.key({"a": "b"}), ["test", "test2"])
