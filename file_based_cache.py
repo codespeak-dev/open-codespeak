@@ -40,7 +40,11 @@ class CacheKey:
 def make_serializable(obj, is_key: bool = False):
     """Convert params to a serializable format, handling Pydantic models"""
     if hasattr(obj, 'model_dump'): 
-        return obj.model_dump()
+        return {
+            "__pydantic_model_module": obj.__class__.__module__,
+            "__pydantic_model_name": obj.__class__.__name__,
+            "model_dump": obj.model_dump()
+        }
     elif isinstance(obj, dict):
         return {make_serializable(k, is_key=True): make_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, (list, tuple)):
@@ -60,8 +64,31 @@ def make_serializable(obj, is_key: bool = False):
         raise ValueError(f"Object {obj} is not JSON-compatible")
 
 
+def get_pydantic_class(dict: dict) -> type:
+    import importlib
+    module = importlib.import_module(dict["__pydantic_model_module"])
+    return getattr(module, dict["__pydantic_model_name"])
+
+
+def deserialize_with_pydantic(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        if "__pydantic_model_module" in obj:
+            return get_pydantic_class(obj).model_validate(obj["model_dump"])
+        else:
+            return {
+                deserialize_with_pydantic(k): deserialize_with_pydantic(v) 
+                for k, v in obj.items()
+            }
+    elif isinstance(obj, list):
+        return [deserialize_with_pydantic(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(deserialize_with_pydantic(item) for item in obj)
+    else:
+        return obj
+    
+
 class FileBasedCache:
-    VERSION = (0, 0, 1)
+    VERSION = (0, 0, 2)
     VERSION_STRING = ".".join(map(str, VERSION))
 
     def __init__(self, cache_dir: Path):
@@ -76,9 +103,9 @@ class FileBasedCache:
             # parse version from file
             match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
             if not match:
-                raise ValueError(f"Wrong version format in {version_file}: {version}")
+                raise ValueError(f"Wrong version format in {version_file}: {version}. Consider clearing the cache")
             if int(match.group(1)) > self.VERSION[0] or int(match.group(2)) > self.VERSION[1] or int(match.group(3)) > self.VERSION[2]:
-                raise ValueError(f"Cache version mismatch: {version} > {self.VERSION_STRING}")
+                raise ValueError(f"Cache version mismatch: {version} > {self.VERSION_STRING}. Consider clearing the cache")
 
     def _file_name(self, key: str, file_type: str) -> Path:
         return self.cache_dir.joinpath(f"{key}.{file_type}")
@@ -86,7 +113,7 @@ class FileBasedCache:
     def _get(self, key: CacheKey) -> Any:
         file_name = self._file_name(key, "json")
         if file_name.exists():
-            return json.loads(file_name.read_text())
+            return deserialize_with_pydantic(json.loads(file_name.read_text()))
         
         file_name = self._file_name(key, "txt")
         if file_name.exists():
@@ -117,6 +144,23 @@ class FileBasedCache:
             self._set(key, value)
         else:
             self._set(CacheKey(key), value)
+
+    def cache_call(self, callable, **kwargs):
+        key = self.key_for_callable(callable, **kwargs)
+        cached_value = self.get(key)
+        if cached_value is not None:
+            return cached_value
+        else:
+            result = callable(**kwargs)
+            self.set(key, result)
+            return result
+        
+    def key_for_callable(self, callable, **kwargs) -> CacheKey:
+        method_name = f"{callable.__module__}.{callable.__self__.__class__.__name__}.{callable.__name__}"
+        return CacheKey({
+            "__method_name": method_name,
+            "kwargs": kwargs
+        })
 
 
 if __name__ == "__main__":
