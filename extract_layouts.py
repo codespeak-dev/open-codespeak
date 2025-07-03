@@ -100,8 +100,6 @@ def extract_layouts_with_claude(stories: str, spec: str) -> list[dict]:
 
         return layouts_data
 
-        # return result.strip()
-
 class ExtractLayouts(Phase):
     def run(self, state: State, context: Context) -> dict:
         stories = state.get("stories", "")

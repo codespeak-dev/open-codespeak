@@ -144,3 +144,25 @@ class GitHelper:
             return ""
             
         return stdout
+
+
+    def git_file_content_for_revision(self, file_path: str, revision_sha: str) -> str:
+        """
+        Returns the content of a file at a specific git revision.
+        
+        Args:
+            file_path: Path to the file relative to repository root
+            revision_sha: Git commit SHA to get file content from
+            
+        Returns:
+            The file content as a string, or empty string if file doesn't exist or error
+        """
+        command = ['git', 'show', f'{revision_sha}:{file_path}']
+        
+        returncode, stdout, stderr = self._run_command(command)
+        
+        if returncode != 0:
+            print(f"Error getting file content for {file_path} at {revision_sha}: {stderr}")
+            return ""
+            
+        return stdout
