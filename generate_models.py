@@ -96,25 +96,25 @@ class GenerateModels(Phase):
         project_path = state["project_path"]
         spec_diff = state.get("spec_diff")
 
-        def get_old_revision_blob(file_path: str):
-            return context.git_helper.git_file_content_for_revision(
-                file_path=file_path,
-                revision_sha="0660516b7b1955e10a3e9e05bfc3da36c2988e9d"
-            )
+        # def get_old_revision_blob(file_path: str):
+        #     return context.git_helper.git_file_content_for_revision(
+        #         file_path=file_path,
+        #         revision_sha="0660516b7b1955e10a3e9e05bfc3da36c2988e9d"
+        #     )
 
-        if spec_diff:
-            old_models: str = get_old_revision_blob("web/models.py")
-            old_entities_blob: str = get_old_revision_blob("entities.json")
-            old_entities = json.loads(old_entities_blob)
-            new_entities = state["entities"]
+        # if spec_diff:
+        #     old_models: str = get_old_revision_blob("web/models.py")
+        #     old_entities_blob: str = get_old_revision_blob("entities.json")
+        #     old_entities = json.loads(old_entities_blob)
+        #     new_entities = state["entities"]
 
-            generate_models_with_llm(project_path, old_models, old_entities, new_entities)
-            return {}
+        #     generate_models_with_llm(project_path, old_models, old_entities, new_entities)
+        #     return {}
 
-        else:
-            project_name = state["project_name"]
-            entities: list[Entity] = state["entities"]
-            print(f"Generating Django models in {project_path}")
+        # else:
+        project_name = state["project_name"]
+        entities: list[Entity] = state["entities"]
+        print(f"Generating Django models in {project_path}")
 
-            generate_models_from_template(project_path, project_name, to_entities(entities), "web")
-            return {}
+        generate_models_from_template(project_path, project_name, to_entities(entities), "web")
+        return {}
