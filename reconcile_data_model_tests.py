@@ -276,7 +276,7 @@ Please use the tools to analyze the project structure, identify what's causing t
         try:
             print(f"   🧠 Calling Claude API with {len(messages)} messages...")
             response = client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="claude-3-7-sonnet-latest",
                 max_tokens=8192,
                 temperature=0,
                 system=FIX_ISSUES_SYSTEM_PROMPT,

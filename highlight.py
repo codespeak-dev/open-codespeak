@@ -78,7 +78,7 @@ Return ONLY the highlighted specification text with the tags, no explanations or
 
     try:
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-3-7-sonnet-latest",
             max_tokens=4000,
             messages=[{"role": "user", "content": prompt}]
         )

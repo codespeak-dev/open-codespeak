@@ -62,7 +62,7 @@ def extract_layouts_with_claude(stories: str, spec: str) -> list[dict]:
         input_tokens[0] = len(content.split()) + len(PLAN_LAYOUTS_SYSTEM_PROMPT.split())
 
         message = client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model="claude-3-7-sonnet-latest",
             max_tokens=8192,
             temperature=1,
             system=PLAN_LAYOUTS_SYSTEM_PROMPT,

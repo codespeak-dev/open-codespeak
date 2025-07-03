@@ -61,7 +61,7 @@ def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
     ]
 
     response = client.messages.create(
-        model="claude-3-5-sonnet-latest",
+        model="claude-3-7-sonnet-latest",
         max_tokens=512,
         temperature=0,
         system=system_prompt,

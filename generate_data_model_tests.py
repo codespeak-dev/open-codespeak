@@ -42,7 +42,7 @@ def generate_data_model_tests(views_content: str) -> str:
         input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + views_content).split())
 
         with client.messages.stream(
-            model="claude-3-5-sonnet-latest",
+            model="claude-3-7-sonnet-latest",
             max_tokens=8192,
             temperature=0,
             system=DATA_MODEL_TESTS_SYSTEM_PROMPT,
