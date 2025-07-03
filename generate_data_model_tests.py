@@ -6,7 +6,7 @@ from with_step import with_streaming_step
 import llm_cache
 
 
-DATA_MODEL_TESTS_SYSTEM_PROMPT = """You are an expert Django developer. Given Django views.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
+DATA_MODEL_TESTS_SYSTEM_PROMPT = """You are an expert Django developer. Given Django models.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
 1. Import from django.test import TestCase
 2. Import the models from web.models
 3. Import any other necessary Django modules (like datetime, uuid, etc.)
@@ -22,31 +22,31 @@ Generate comprehensive tests that verify the models work correctly with the Djan
 IMPORTANT: Your response should be composed of only Python code with the complete Django TestCase class, no explanation or NO markdown formatting."""
 
 
-def read_views_file(project_path: str) -> str:
-    """Read the views.py file from the web app"""
-    views_path = os.path.join(project_path, "web", "views.py")
-    if not os.path.exists(views_path):
-        raise FileNotFoundError(f"views.py not found at {views_path}")
+def read_models_file(project_path: str) -> str:
+    """Read the models.py file from the web app"""
+    models_path = os.path.join(project_path, "web", "models.py")
+    if not os.path.exists(models_path):
+        raise FileNotFoundError(f"models.py not found at {models_path}")
 
-    with open(views_path, 'r') as f:
+    with open(models_path, 'r') as f:
         return f.read()
 
 
-def generate_data_model_tests(views_content: str) -> str:
-    """Use Claude to generate data model tests based on views.py"""
+def generate_data_model_tests(models_content: str) -> str:
+    """Use Claude to generate data model tests based on models.py"""
     client = llm_cache.Anthropic()
 
     with with_streaming_step("Generating data model tests with Claude...") as (input_tokens, output_tokens):
         response_text = ""
-        # Count input tokens from system prompt and views content
-        input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + views_content).split())
+        # Count input tokens from system prompt and models content
+        input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + models_content).split())
 
         with client.messages.stream(
             model="claude-3-7-sonnet-latest",
             max_tokens=8192,
             temperature=0,
             system=DATA_MODEL_TESTS_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": views_content}]
+            messages=[{"role": "user", "content": models_content}]
         ) as stream:
             for text in stream.text_stream:
                 response_text += text
@@ -77,9 +77,9 @@ class GenerateDataModelTests(Phase):
 
         project_path = state["project_path"]
 
-        views_content = read_views_file(project_path)
+        models_content = read_models_file(project_path)
 
-        test_code = generate_data_model_tests(views_content)
+        test_code = generate_data_model_tests(models_content)
         test_file_path = save_test_to_project(test_code, project_path)
 
         return {
