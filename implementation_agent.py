@@ -159,6 +159,7 @@ class ImplementationAgent:
     _system_prompt: str
     _tools_prompt: str
     _tools_definitions: list[dict]
+    _check_read_before_write: bool
 
     def __init__(
         self,
@@ -169,10 +170,12 @@ class ImplementationAgent:
         system_prompt_override: str | None = None,
         tools_definitions_override: list[dict] | None = None,
         tools_prompt_override: str | None = None,
+        check_read_before_write: bool = True,
     ):
         self._system_prompt = system_prompt_override or IMPLEMENTATION_SYSTEM_PROMPT
         self._tools_prompt = tools_prompt_override or tools_prompt(tools_definitions_override or TOOLS_DEFINITIONS)
         self._tools_definitions = tools_definitions_override or TOOLS_DEFINITIONS
+        self._check_read_before_write = check_read_before_write
 
         print(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Creating ImplementationAgent")
         print(f"  Project path: {project_path}")
@@ -511,12 +514,14 @@ class ImplementationAgent:
         print(f"  Expected replacements: {expected_replacements}")
 
         # Validation 1: File must have been read first
-        if file_path not in self.file_state_cache:
+        if self._check_read_before_write and file_path not in self.file_state_cache:
             error_msg = f"File must be read with read_file before editing: {file_path}"
             print(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
             self.history.append(f"Edit failed: {error_msg}")
             return {"success": False, "error": error_msg}
 
+        if not self._check_read_before_write:
+            self.read_file(file_path) # load into cache if the agent not obliged to read before editing
         cached_file = self.file_state_cache[file_path]
 
         # Validation 2: Cannot edit empty files
