@@ -73,7 +73,7 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
         with client.messages.stream(
             model="claude-3-7-sonnet-latest",
             max_tokens=10000,
-            temperature=0,
+            temperature=1,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
             thinking={
