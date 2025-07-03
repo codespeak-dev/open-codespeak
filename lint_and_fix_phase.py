@@ -39,14 +39,6 @@ class LintAndFix(Phase):
         return json.loads(output.read())
 
     def run(self, state: State, context: Context) -> dict:
-        agent = ImplementationAgent(
-            project_path=state["project_path"],
-            system_prompt_override=self._SYSTEM_PROMPT,
-            tools_definitions_override=[tool for tool in TOOLS_DEFINITIONS if tool['name'] == 'edit_file'],
-            check_read_before_write=False,
-            context=context
-        )
-
         project_path = state["project_path"]
         
         # Find all Python files in the project
@@ -72,6 +64,14 @@ class LintAndFix(Phase):
         else:
             print(f"    {Colors.BRIGHT_RED}❌ {len(errors)} Python lint errors found, fixing with agent...{Colors.END}")
 
+        agent = ImplementationAgent(
+            project_path=state["project_path"],
+            system_prompt_override=self._SYSTEM_PROMPT,
+            tools_definitions_override=[tool for tool in TOOLS_DEFINITIONS if tool['name'] == 'edit_file'],
+            check_read_before_write=False,
+            context=context
+        )
+    
         # Group errors by file path
         errors_by_file = {}
         for error in errors:
