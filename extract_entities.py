@@ -6,16 +6,7 @@ from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
 from anthropic.types import ToolParam
-
-SYSTEM_PROMPT = """
-You are an expert Django developer and an excellent data modeler. Given a user prompt, extract a list of Django models and their fields.
-
-IMPORTANT: you should only extract entities that are actually storing the data in the database. It's perfectly fine for a specification not to have any entities.
-
-IMPORTANT: If there's an intermediate model that connects two other models (like Appointment with Patient and Doctor, or like LineItem with Order and Product),
-do NOT create direct ManyToManyField relationships between the connected models. 
-The intermediate model's ForeignKey relationships are sufficient to represent the many-to-many connection.
-"""
+from fileutils import format_file_content, load_template as load_template_jinja
 
 class EntityField(BaseModel):
     name: str
@@ -33,7 +24,6 @@ class Entity(BaseModel):
     relationships: list[EntityRelationship] = []
 
 def to_entities(raw_data):
-    # Convert tool response format to Entity objects
     return [Entity(**item) for item in raw_data]
 
 # Tool definitions constant
@@ -108,7 +98,7 @@ ENTITY_TOOLS_SCHEMA: list[ToolParam] = [
 ]
 
 
-def extract_models_and_fields(prompt: str) -> list[dict]:
+def extract_models_and_fields(spec: str, existing_entities=None, spec_diff=None) -> list[dict]:
     """
     Uses Claude to extract a list of Django models and their fields from the prompt.
     Returns a list of Entity objects with fields and relationships.
@@ -116,14 +106,19 @@ def extract_models_and_fields(prompt: str) -> list[dict]:
     client = llm_cache.Anthropic()
 
     with with_streaming_step("Figuring out the data model...") as (input_tokens, output_tokens):
-        input_tokens[0] = len((SYSTEM_PROMPT + prompt).split())
+        system_prompt = "You are an expert Django developer and an excellent data modeler."
+
+        # Adds line numbers to the spec, to make it easier to understand the diff
+        spec, _ = format_file_content(spec, offset=None, limit=None, truncate_line=None)
+        user_prompt = load_template_jinja("prompts/extract_entities.j2", existing_entities=existing_entities, spec_diff=spec_diff, spec=spec)
+        input_tokens[0] = len((system_prompt + user_prompt).split())
 
         message = client.messages.create(
             model="claude-3-7-sonnet-latest",
             max_tokens=10000,
             temperature=1,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
             thinking={
                 "type": "enabled",
                 "budget_tokens": 4000
@@ -164,10 +159,15 @@ class ExtractEntities(Phase):
 
     def run(self, state: State, context: Context) -> dict:
         spec = state["spec"]
+        existing_entities = state.get("entities", [])
+        spec_diff = state.get("spec_diff")
 
-        entities_data = extract_models_and_fields(spec)
+        entities_data = extract_models_and_fields(spec, existing_entities=existing_entities, spec_diff=spec_diff)
 
-        display_entities(to_entities(entities_data))
+        if len(entities_data) > 0:
+            display_entities(to_entities(entities_data))
+        else:
+            print("No entities extracted")
 
         return {
             "entities": entities_data

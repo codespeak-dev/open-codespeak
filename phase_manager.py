@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from copy import deepcopy
 import datetime
+import difflib
 import json
 import os
 
@@ -355,9 +356,17 @@ class PhaseManager:
 
             self.current_state["spec"] = new_spec
 
-            # Compute diff between old and new processed specs
-            spec_path_relative_to_project_root = os.path.relpath("spec.processed.md", self.current_state["project_path"])
-            spec_diff = self.context.git_helper.get_path_diff(spec_path_relative_to_project_root, previous_spec_commit, self.context.head_hash)
+            with open(os.path.join(self.current_state["project_path"], "spec.processed.md"), "r") as f:
+                old_processed_spec = f.read()
+
+            diff = difflib.unified_diff(
+                old_processed_spec.splitlines(keepends=True),
+                new_spec.splitlines(keepends=True),
+                lineterm=''
+            )
+
+            spec_diff = ''.join(diff)
+
             self.current_state["spec_diff"] = spec_diff
 
         start_index = self.phases.index(first_phase_to_run)

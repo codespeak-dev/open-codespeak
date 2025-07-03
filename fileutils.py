@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from jinja2 import Template
 
 @dataclass
 class FileMetadata:
@@ -67,3 +67,18 @@ def format_file_content(content: str, offset: int | None = None, limit: int | No
     )
     
     return display_content, metadata
+
+def load_template(template_path: str, **kwargs) -> str:
+    """
+    Load a Jinja2 template file and render it with provided kwargs.
+
+    Args:
+        template_path: Path to the .j2 template file
+        **kwargs: Arbitrary keyword arguments to pass to the template
+
+    Returns:
+        Rendered template content as string
+    """
+    with open(template_path, "r") as f:
+        template = Template(f.read())
+        return template.render(**kwargs)
