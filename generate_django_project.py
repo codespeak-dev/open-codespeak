@@ -1,13 +1,10 @@
 import shutil
-from typing import List
 import os
 import secrets
 import re
 from jinja2 import Environment, FileSystemLoader
 
-from extract_entities import Entity
 from phase_manager import State, Phase, Context
-
 
 def generate_django_project_from_template(project_path: str, project_name: str, app_name: str = "web"):
     template_dir = "app_template"
@@ -57,9 +54,14 @@ def generate_django_project_from_template(project_path: str, project_name: str, 
 class GenerateDjangoProject(Phase):
     description = "Create a new Django project"
     
-    def run(self, state: State, context: Context = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         project_name = state["project_name"]
         project_path = state["project_path"]
+
+        if os.path.exists(project_path) and os.path.exists(os.path.join(project_path, "manage.py")):
+            print(f"Django project already exists at {project_path}, skipping generation")
+            return {}
+
         print(f"Generating Django project in {project_path} with name {project_name}")
         generate_django_project_from_template(project_path, project_name, "web")
         return {}
