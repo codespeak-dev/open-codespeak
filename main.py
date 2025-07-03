@@ -22,6 +22,7 @@ from phase_manager import Done, PhaseManager, Context, Init, Phase, State
 from spec_processor import SpecProcessor
 from git_helper import GitHelper
 from incremental_mode import IncrementalMode
+from ensure_server_starts import EnsureServerStarts
 
 dotenv.load_dotenv()
 
@@ -115,6 +116,7 @@ def main():
             ExecuteLayouts(),
             PlanWork(),
             ExecuteWork(),
+            EnsureServerStarts(),
             Done(),
         ], 
         state_file=Path(project_path) / "codespeak_state.json",

@@ -135,7 +135,9 @@ Create clean, functional Django code that follows best practices.
 Do not remove any FastAPI related code.
 Follow the same style and structure as the existing code.
 When you are done, you do not need to summarize the work performed.
+"""
 
+TOOLS_PROMPT = f"""
 ## Available Tools
 
 You have access to the following tools:
@@ -738,16 +740,16 @@ class ImplementationAgent:
                 return True
         return False
 
-    def run_streaming_conversation(self, messages: list) -> dict:
+    def run_streaming_conversation(self, system_prompt: str, messages: list) -> dict:
         """Run a conversation with the selected provider until completion"""
         if self.provider == 'anthropic':
-            return self.run_anthropic_conversation(messages)
+            return self.run_anthropic_conversation(system_prompt, messages)
         elif self.provider == 'gemini':
             return self.run_gemini_conversation(messages)
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
 
-    def run_anthropic_conversation(self, messages: list) -> dict:
+    def run_anthropic_conversation(self, system_prompt: str, messages: list) -> dict:
         """Run a streaming conversation with Claude until completion"""
         output_tokens = 0
         total_api_duration = 0.0
@@ -765,13 +767,15 @@ class ImplementationAgent:
             # Track API call duration
             api_start_time = time.time()
 
+            full_system_prompt = system_prompt + "\n" + TOOLS_PROMPT
+
             # Use the streaming helper for cleaner code with retry logic
             def make_streaming_request():
                 with self.anthropic_client.messages.stream(
                     model="claude-sonnet-4-20250514", 
                     max_tokens=10000,
                     temperature=0,
-                    system=IMPLEMENTATION_SYSTEM_PROMPT,
+                    system=full_system_prompt,
                     tools=self.get_anthropic_tools_schema(),
                     messages=messages
                 ) as stream:
@@ -1000,11 +1004,11 @@ class ImplementationAgent:
 
         # Initialize token tracking
         messages = [{"role": "user", "content": prompt}]
-        input_tokens = len(prompt.split()) + len(IMPLEMENTATION_SYSTEM_PROMPT.split())
+        input_tokens = len(prompt.split()) + len(IMPLEMENTATION_SYSTEM_PROMPT.split()) + len(TOOLS_PROMPT.split())
         print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Estimated input tokens: {input_tokens}")
 
         # Run the streaming conversation
-        result = self.run_streaming_conversation(messages)
+        result = self.run_streaming_conversation(IMPLEMENTATION_SYSTEM_PROMPT, messages)
 
         print(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Step implementation completed")
         print(f"  Total input tokens: {input_tokens}")

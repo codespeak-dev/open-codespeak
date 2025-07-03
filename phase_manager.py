@@ -280,7 +280,7 @@ class PhaseManager:
             sf_index = phase_names.index(incremental_mode.phase_name)
             assert sf_index >= 0, f"Phase {incremental_mode.phase_name} not found in {self.phases}"
 
-            if sf_index > last_successful_index:
+            if sf_index > last_successful_index + 1:
                 raise StateMachineError(
                     f"Phase {incremental_mode.phase_name} is not a valid starting point: it's order index ({sf_index})" 
                     f"is after the last successful phase {last_successful.id} ({last_successful_index})"
