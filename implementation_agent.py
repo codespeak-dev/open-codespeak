@@ -106,10 +106,10 @@ ToolSpecificInstructions = {
 - Verify expected_replacements matches actual occurrences"""
 }
 
-def generate_tools_documentation():
+def generate_tools_documentation(tools_definitions: list[dict]):
     """Generate tool documentation from TOOLS_DEFINITIONS"""
     docs = []
-    for tool in TOOLS_DEFINITIONS:
+    for tool in tools_definitions:
         doc = f"### {tool['name']}\n{tool['description']}\n"
 
         # Add any tool-specific instructions
@@ -138,23 +138,41 @@ Follow the same style and structure as the existing code.
 When you are done, you do not need to summarize the work performed.
 """
 
-TOOLS_PROMPT = f"""
-## Available Tools
+def tools_prompt(tools_definitions: list[dict]):
+    return f"""
+            ## Available Tools
 
-You have access to the following tools:
+            You have access to the following tools:
 
-{generate_tools_documentation()}
+            {generate_tools_documentation(tools_definitions)}
 
-## Tool Usage Guidelines
+            ## Tool Usage Guidelines
 
-1. **Batching**: You can call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together.
+            1. **Batching**: You can call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together.
 
-2. **Read Before Write**: ALWAYS use read_file before edit_file or write_file.
-"""
+            2. **Read Before Write**: ALWAYS use read_file before edit_file or write_file.
+            """
 
 
 class ImplementationAgent:
-    def __init__(self, project_path: str, provider: str | None = None, facts: str | None = None):
+
+    _system_prompt: str
+    _tools_prompt: str
+    _tools_definitions: list[dict]
+
+    def __init__(
+        self,
+        project_path: str,
+        provider: str | None = None,
+        facts: str | None = None,
+        system_prompt_override: str | None = None,
+        tools_definitions_override: list[dict] | None = None,
+        tools_prompt_override: str | None = None,
+    ):
+        self._system_prompt = system_prompt_override or IMPLEMENTATION_SYSTEM_PROMPT
+        self._tools_prompt = tools_prompt_override or tools_prompt(tools_definitions_override or TOOLS_DEFINITIONS)
+        self._tools_definitions = tools_definitions_override or TOOLS_DEFINITIONS
+
         print(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Creating ImplementationAgent")
         print(f"  Project path: {project_path}")
 
@@ -208,14 +226,14 @@ class ImplementationAgent:
                 description=tool["description"],
                 input_schema=tool["input_schema"]
             )
-            for tool in TOOLS_DEFINITIONS
+            for tool in self._tools_definitions
         ]
 
     def get_gemini_tools_schema(self):
         """Get the tools schema for the Gemini API"""
         function_declarations = []
 
-        for tool in TOOLS_DEFINITIONS:
+        for tool in self._tools_definitions:
             # Use custom description and schema for edit_file tool in Gemini
             if tool["name"] == "edit_file":
                 # Custom Gemini-specific edit_file definition
@@ -737,7 +755,7 @@ class ImplementationAgent:
             # Track API call duration
             api_start_time = time.time()
 
-            full_system_prompt = system_prompt + "\n" + TOOLS_PROMPT
+            full_system_prompt = system_prompt + "\n" + self._tools_prompt
 
             # Use the streaming helper for cleaner code with retry logic
             def make_streaming_request():
@@ -974,11 +992,11 @@ class ImplementationAgent:
 
         # Initialize token tracking
         messages = [{"role": "user", "content": prompt}]
-        input_tokens = len(prompt.split()) + len(IMPLEMENTATION_SYSTEM_PROMPT.split()) + len(TOOLS_PROMPT.split())
+        input_tokens = len(prompt.split()) + len(self._system_prompt.split()) + len(self._tools_prompt.split())
         print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Estimated input tokens: {input_tokens}")
 
         # Run the streaming conversation
-        result = self.run_streaming_conversation(IMPLEMENTATION_SYSTEM_PROMPT, messages)
+        result = self.run_streaming_conversation(self._system_prompt, messages)
 
         print(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Step implementation completed")
         print(f"  Total input tokens: {input_tokens}")
