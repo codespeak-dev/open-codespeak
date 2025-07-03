@@ -355,8 +355,8 @@ class PhaseManager:
 
             self.current_state["spec"] = new_spec
 
-            # Compute spec diff
-            spec_path_relative_to_project_root = os.path.relpath(spec_file_path, self.current_state["project_path"])
+            # Compute diff between old and new processed specs
+            spec_path_relative_to_project_root = os.path.relpath("spec.processed.md", self.current_state["project_path"])
             spec_diff = self.context.git_helper.get_path_diff(spec_path_relative_to_project_root, previous_spec_commit, self.context.head_hash)
             self.current_state["spec_diff"] = spec_diff
 
