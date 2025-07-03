@@ -68,12 +68,11 @@ class EnsureServerStarts(Phase):
         try:
             stdout_lines, stderr_lines, proc = self.launch_and_capture(args, project_path, timeout_sec)
             # Filter out empty or only-whitespace strings from both arrays
-            stdout_lines = [line for line in stdout_lines if line.strip()]
-            stderr_lines = [line for line in stderr_lines if line.strip()]
             output_lines = [line for line in stdout_lines + stderr_lines if line.strip()]
             output = "\n".join(output_lines)
             print(f"Server output after {timeout_sec} seconds: [[[\n{output}\n]]]")
-            if any("Starting development server at" in line for line in stdout_lines) and any("Quit the server with CONTROL-C" in line for line in stdout_lines):
+            if any("Starting development server at" in line for line in output_lines) and any(
+                    "Quit the server with CONTROL-C" in line for line in output_lines):
                 # successful start
                 return True, None
             else:
