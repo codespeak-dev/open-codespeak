@@ -203,3 +203,4 @@ test_outputs/
 
 .claude/
 .todo
+/log_viewer/node_modules/

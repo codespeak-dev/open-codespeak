@@ -1,0 +1,17 @@
+{
+  "name": "log-parser-server",
+  "version": "1.0.0",
+  "description": "A lightweight server that parses log files and generates HTML tables with expandable nested entries",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "chokidar": "^3.5.3"
+  },
+  "keywords": ["log", "parser", "html", "server"],
+  "author": "",
+  "license": "ISC"
+}
