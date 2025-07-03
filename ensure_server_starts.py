@@ -3,7 +3,8 @@ import subprocess
 import sys
 import time
 import socket
-from typing import Tuple
+import requests
+from requests import RequestException
 
 from implementation_agent import ImplementationAgent
 from phase_manager import State, Phase, Context
@@ -38,90 +39,73 @@ class EnsureServerStarts(Phase):
                     port += 1
         raise RuntimeError(f"No free port found in range {start_port} to {port - 1}")
 
-    @staticmethod
-    def launch_and_capture(args: list, cwd: str, wait_time_sec: int, patterns_to_be_captured: list[str]):
-        proc = subprocess.Popen(
-            args=args,
-            cwd=cwd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True)
+    def run_server(self, project_path: str) -> [bool, str]:
+        timeout_sec = 60
 
-        # Use selectors to do non-blocking reads
-        sel = selectors.DefaultSelector()
-        sel.register(proc.stdout, selectors.EVENT_READ)
-        sel.register(proc.stderr, selectors.EVENT_READ)
-
-        start_time = time.time()
-        stdout_lines = []
-        stderr_lines = []
-        captured_patterns = []
-
-        while True:
-            elapsed = time.time() - start_time
-            if elapsed > wait_time_sec:
-                # Stop waiting after the given time
-                break
-
-            events = sel.select(timeout=0.1)  # short timeout to be non-blocking-ish
-            for key, _ in events:
-                data = key.fileobj.readline()
-                if not data:
-                    # EOF
-                    print(f"Unregistering {'STDOUT' if key.fileobj == proc.stdout else 'STDERR'}")
-                    sel.unregister(key.fileobj)
-                else:
-                    output_line = data.rstrip('\n')
-                    if key.fileobj == proc.stdout:
-                        print(f"Received STDOUT line: \"{output_line}\" after {elapsed:.2f} s since start")
-                        stdout_lines.append(output_line)
-                    else:
-                        print(f"Received STDERR line: \"{output_line}\" after {elapsed:.2f} s since start")
-                        stderr_lines.append(output_line)
-
-                    for pattern in patterns_to_be_captured:
-                        if pattern in output_line:
-                            print(f"Captured pattern \"{pattern}\"")
-                            captured_patterns.append(pattern)
-                            break
-
-            if len(captured_patterns) == len(patterns_to_be_captured):
-                print(f"Captured all required patterns in {elapsed:.2f} s since start")
-                break
-
-            # If both pipes closed early, stop waiting
-            if not sel.get_map():
-                break
-
-        return len(captured_patterns) == len(patterns_to_be_captured), stdout_lines, stderr_lines, proc
-
-    def run_server(self, project_path: str) -> Tuple[bool, str | None]:
         port = EnsureServerStarts.find_free_port(5678)
         args = [sys.executable, f"manage.py", "runserver", str(port), "--verbosity", "3"]
-        timeout_sec = 60
+        accepted_status_codes = [200, 403]
         print(f"Launching server: {args} in folder {project_path} and waiting for up to {timeout_sec} seconds")
-
         proc = None
         try:
-            all_captured, stdout_lines, stderr_lines, proc = \
-                EnsureServerStarts.launch_and_capture(args, project_path, timeout_sec, EnsureServerStarts.SUCCESSFUL_SERVER_START_PATTERNS)
-            # Filter out empty or only-whitespace strings from both arrays
-            output_lines = [line for line in (stdout_lines + stderr_lines) if line.strip()]
-            output = "\n".join(output_lines)
+            proc = subprocess.Popen(
+                args=args,
+                cwd=project_path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True)
 
-            if all_captured:
-                # successful start
-                return True, None
-            else:
-                print(f"Did not capture required messages in {timeout_sec} s, assuming server failed to start.")
-                return False, output
+            time.sleep(1) # wait for start to log less errors
+
+            # Use selectors to do non-blocking reads
+            sel = selectors.DefaultSelector()
+            sel.register(proc.stdout, selectors.EVENT_READ)
+            sel.register(proc.stderr, selectors.EVENT_READ)
+
+            start_time = time.time()
+            output_lines = []
+
+            while True:
+                elapsed = time.time() - start_time
+                if elapsed > timeout_sec:
+                    # Stop waiting after the given time
+                    return False, output_lines
+
+                url = f'http://localhost:{port}'
+                try:
+                    response = requests.get(url)
+                    if response.status_code in accepted_status_codes:
+                        print(f"Request to {url} succeeded with status code {response.status_code}")
+                        return True, None
+                    else:
+                        print(f"Request to {url} failed with status code {response.status_code}, response: {response.content}")
+
+                except RequestException as e:
+                    print(f"Request to {url} failed with exception {e}")
+
+                if sel.get_map():
+                    events = sel.select(timeout=0.5)  # short timeout to be non-blocking-ish
+                    for key, _ in events:
+                        data = key.fileobj.readline()
+                        if not data:
+                            # EOF
+                            print(f"Unregistering {'STDOUT' if key.fileobj == proc.stdout else 'STDERR'}")
+                            sel.unregister(key.fileobj)
+                        else:
+                            output_line = data.rstrip('\n')
+                            if key.fileobj == proc.stdout:
+                                print(f"Received STDOUT line: \"{output_line}\" after {elapsed:.2f} s since start")
+                                output_lines.append(output_line)
+                            else:
+                                print(f"Received STDERR line: \"{output_line}\" after {elapsed:.2f} s since start")
+                                output_lines.append(output_line)
+
         finally:
             if proc:
                 proc.terminate()
                 proc.wait(timeout=3)
 
-    @staticmethod
-    def try_to_fix_server(project_path: str, output: str | None) -> None:
+    def try_to_fix_server(self, project_path: str, output: str | None) -> None:
         agent = ImplementationAgent(project_path)
 
         user_prompt = f"Here's the server output: \n{output}" if output else "Server did not produce any output"
