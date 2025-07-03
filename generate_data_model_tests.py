@@ -2,7 +2,6 @@ import os
 from colors import Colors
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
-import llm_cache
 
 
 DATA_MODEL_TESTS_SYSTEM_PROMPT = """You are an expert Django developer. Given Django models.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
@@ -31,16 +30,15 @@ def read_models_file(project_path: str) -> str:
         return f.read()
 
 
-def generate_data_model_tests(models_content: str) -> str:
+def generate_data_model_tests(models_content: str, context: Context) -> str:
     """Use Claude to generate data model tests based on models.py"""
-    client = llm_cache.Anthropic()
 
     with with_streaming_step("Generating data model tests with Claude...") as (input_tokens, output_tokens):
         response_text = ""
         # Count input tokens from system prompt and models content
         input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + models_content).split())
 
-        with client.messages.stream(
+        with context.anthropic_client.stream(
             model="claude-3-7-sonnet-latest",
             max_tokens=8192,
             temperature=0,
@@ -51,6 +49,7 @@ def generate_data_model_tests(models_content: str) -> str:
                 response_text += text
                 output_tokens[0] += len(text.split())
 
+    print(f"Response text: {response_text}")
     return response_text.strip()
 
 
@@ -78,7 +77,7 @@ class GenerateDataModelTests(Phase):
 
         models_content = read_models_file(project_path)
 
-        test_code = generate_data_model_tests(models_content)
+        test_code = generate_data_model_tests(models_content, context)
         test_file_path = save_test_to_project(test_code, project_path)
 
         return {

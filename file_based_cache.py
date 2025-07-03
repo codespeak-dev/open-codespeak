@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import hashlib
 from pathlib import Path
 import re
@@ -5,8 +6,65 @@ from typing import Any
 import json
 
 
+class Sanitizer:
+    def sanitize(self, text: str) -> str:
+        return text
+
+class Serializer:
+    def __init__(self, sanitizer: Sanitizer = Sanitizer()):
+        self.sanitizer = sanitizer
+
+    def make_serializable(self, obj, is_key: bool = False):
+        """Convert params to a serializable format, handling Pydantic models"""
+        if hasattr(obj, 'model_dump'): 
+            return {
+                "__pydantic_model_module": obj.__class__.__module__,
+                "__pydantic_model_name": obj.__class__.__name__,
+                "model_dump": obj.model_dump()
+            }
+        elif isinstance(obj, dict):
+            return {self.make_serializable(k, is_key=True): self.make_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [self.make_serializable(item) for item in obj]
+        elif hasattr(obj, '__dict__'):
+            return obj.__dict__
+        elif isinstance(obj, str):
+            return self.sanitizer.sanitize(obj)
+        elif isinstance(obj, (int, float, bool)):
+            if is_key:
+                return str(obj)
+            else:
+                return obj
+        elif obj is None:
+            return None
+        else:
+            raise ValueError(f"Object {obj} is not JSON-compatible")
+
+    def get_pydantic_class(self, dict: dict) -> type:
+        import importlib
+        module = importlib.import_module(dict["__pydantic_model_module"])
+        return getattr(module, dict["__pydantic_model_name"])
+
+    def deserialize_with_pydantic(self, obj: Any) -> Any:
+        if isinstance(obj, dict):
+            if "__pydantic_model_module" in obj:
+                return self.get_pydantic_class(obj).model_validate(obj["model_dump"])
+            else:
+                return {
+                    self.deserialize_with_pydantic(k): self.deserialize_with_pydantic(v) 
+                    for k, v in obj.items()
+                }
+        elif isinstance(obj, list):
+            return [self.deserialize_with_pydantic(item) for item in obj]
+        elif isinstance(obj, tuple):
+            return tuple(self.deserialize_with_pydantic(item) for item in obj)
+        else:
+            return obj
+    
+
 class CacheKey:
-    def __init__(self, key_source: Any):
+    def __init__(self, key_source: Any, serializer: Serializer):
+        self.serializer = serializer
         self._raw_source = key_source
         self._prepared_source = self._make_hashable(key_source)
         self._hash = hashlib.sha256(self._prepared_source.encode()).hexdigest()
@@ -29,7 +87,7 @@ class CacheKey:
         return self._prepared_source
 
     def _make_hashable(self, raw_source: Any) -> str:        
-        serializable = make_serializable(raw_source)
+        serializable = self.serializer.make_serializable(raw_source)
         
         if isinstance(serializable, str):
             return serializable
@@ -37,63 +95,17 @@ class CacheKey:
             return json.dumps(serializable, sort_keys=True, indent=2)
 
 
-def make_serializable(obj, is_key: bool = False):
-    """Convert params to a serializable format, handling Pydantic models"""
-    if hasattr(obj, 'model_dump'): 
-        return {
-            "__pydantic_model_module": obj.__class__.__module__,
-            "__pydantic_model_name": obj.__class__.__name__,
-            "model_dump": obj.model_dump()
-        }
-    elif isinstance(obj, dict):
-        return {make_serializable(k, is_key=True): make_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
-        return [make_serializable(item) for item in obj]
-    elif hasattr(obj, '__dict__'):
-        return obj.__dict__
-    elif isinstance(obj, str):
-        return obj
-    elif isinstance(obj, (int, float, bool)):
-        if is_key:
-            return str(obj)
-        else:
-            return obj
-    elif obj is None:
-        return None
-    else:
-        raise ValueError(f"Object {obj} is not JSON-compatible")
-
-
-def get_pydantic_class(dict: dict) -> type:
-    import importlib
-    module = importlib.import_module(dict["__pydantic_model_module"])
-    return getattr(module, dict["__pydantic_model_name"])
-
-
-def deserialize_with_pydantic(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        if "__pydantic_model_module" in obj:
-            return get_pydantic_class(obj).model_validate(obj["model_dump"])
-        else:
-            return {
-                deserialize_with_pydantic(k): deserialize_with_pydantic(v) 
-                for k, v in obj.items()
-            }
-    elif isinstance(obj, list):
-        return [deserialize_with_pydantic(item) for item in obj]
-    elif isinstance(obj, tuple):
-        return tuple(deserialize_with_pydantic(item) for item in obj)
-    else:
-        return obj
-    
-
 class FileBasedCache:
     VERSION = (0, 0, 2)
     VERSION_STRING = ".".join(map(str, VERSION))
 
-    def __init__(self, cache_dir: Path):
+    def __init__(self, cache_dir: Path, key_sanitizer: Sanitizer = Sanitizer()):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+
+        self.key_serializer = Serializer(key_sanitizer)
+        self.value_serializer = Serializer()
+
         version_file = self.cache_dir.joinpath(".version")
         if not version_file.exists():
             version_file.write_text(self.VERSION_STRING)
@@ -113,7 +125,7 @@ class FileBasedCache:
     def _get(self, key: CacheKey) -> Any:
         file_name = self._file_name(key, "json")
         if file_name.exists():
-            return deserialize_with_pydantic(json.loads(file_name.read_text()))
+            return self.value_serializer.deserialize_with_pydantic(json.loads(file_name.read_text()))
         
         file_name = self._file_name(key, "txt")
         if file_name.exists():
@@ -126,7 +138,7 @@ class FileBasedCache:
             self._file_name(key.hash, "txt").write_text(value)
         else:
             self._file_name(key.hash, "json").write_text(
-                json.dumps(make_serializable(value), sort_keys=True, indent=2))
+                json.dumps(self.value_serializer.make_serializable(value), sort_keys=True, indent=2))
 
         if isinstance(key._raw_source, str):
             self._file_name(f"{key.hash}.src", "txt").write_text(key.key_source)
@@ -137,13 +149,13 @@ class FileBasedCache:
         if isinstance(key, CacheKey):
             return self._get(key)
         else:
-            return self._get(CacheKey(key))
+            return self._get(self.key(key))
 
     def set(self, key: Any, value: Any):
         if isinstance(key, CacheKey):
             self._set(key, value)
         else:
-            self._set(CacheKey(key), value)
+            self._set(self.key(key), value)
 
     def cache_call(self, callable, **kwargs):
         key = self.key_for_callable(callable, **kwargs)
@@ -154,10 +166,13 @@ class FileBasedCache:
             result = callable(**kwargs)
             self.set(key, result)
             return result
-        
+
+    def key(self, key_source: Any) -> CacheKey:
+        return CacheKey(key_source, self.key_serializer)
+    
     def key_for_callable(self, callable, **kwargs) -> CacheKey:
         method_name = f"{callable.__module__}.{callable.__self__.__class__.__name__}.{callable.__name__}"
-        return CacheKey({
+        return self.key({
             "__method_name": method_name,
             "kwargs": kwargs
         })
@@ -165,11 +180,11 @@ class FileBasedCache:
 
 if __name__ == "__main__":
     cache = FileBasedCache(Path("test_outputs/.test_llm_cache"))
-    cache.set(CacheKey("test"), "test")
-    cache.set(CacheKey({"a": "b"}), ["test", "test2"])
-    cache.set(CacheKey({"a": "b", 2: 1}), "test111")
-    cache.set(CacheKey("key"), ["value"])
-    print(cache.get(CacheKey("test")))
-    print(cache.get(CacheKey({"a": "b"})))
-    print(cache.get(CacheKey({"a": "b", 2: 1})))
-    print(cache.get(CacheKey("key")))
+    cache.set(cache.key("test"), "test")
+    cache.set(cache.key({"a": "b"}), ["test", "test2"])
+    cache.set(cache.key({"a": "b", 2: 1}), "test111")
+    cache.set(cache.key("key"), ["value"])
+    print(cache.get(cache.key("test")))
+    print(cache.get(cache.key({"a": "b"})))
+    print(cache.get(cache.key({"a": "b", 2: 1})))
+    print(cache.get(cache.key("key")))

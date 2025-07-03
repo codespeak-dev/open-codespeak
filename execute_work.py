@@ -49,7 +49,7 @@ class ExecuteWork(Phase):
 
         # Create implementation agent with provider support
         print(f"{Colors.BRIGHT_YELLOW}[AGENT]{Colors.END} Creating implementation agent with provider: {provider}")
-        agent = ImplementationAgent(project_path, provider=provider, facts=facts)
+        agent = ImplementationAgent(project_path, context, provider=provider, facts=facts)
 
         # Initialize API duration tracking
         total_api_duration = 0.0

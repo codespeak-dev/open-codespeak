@@ -1,4 +1,3 @@
-import llm_cache
 import json
 from anthropic.types import ToolParam
 from colors import Colors
@@ -56,15 +55,14 @@ LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
     )
 ]
 
-def extract_layouts_with_claude(stories: str, spec: str) -> list[dict]:
-    client = llm_cache.Anthropic()
+def extract_layouts_with_claude(stories: str, spec: str, context: Context) -> list[dict]:
 
     with with_streaming_step("Planning layouts...") as (input_tokens, output_tokens):
         content = f"<spec>\n{spec}\n</spec>\n<stories>\n{stories}\n</stories>"
         
         input_tokens[0] = len(content.split()) + len(PLAN_LAYOUTS_SYSTEM_PROMPT.split())
 
-        message = client.messages.create(
+        message = context.anthropic_client.create(
             model="claude-3-7-sonnet-latest",
             max_tokens=8192,
             temperature=1,
@@ -106,7 +104,7 @@ class ExtractLayouts(Phase):
         spec = state["spec"]
         verbose = context.verbose if context else False
 
-        layouts = extract_layouts_with_claude(stories, spec)
+        layouts = extract_layouts_with_claude(stories, spec, context)
 
         if verbose:
             print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned Layouts:{Colors.END}")

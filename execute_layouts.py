@@ -64,20 +64,18 @@ class LayoutImplementationAgent:
         tree_success(f"Created {file_path}")
         return True
 
-    async def run_anthropic_conversation(self, messages: list):
+    async def run_anthropic_conversation(self, messages: list, context: Context):
         """Run a streaming conversation with Claude until completion"""
         tool_use_count = 0
 
         while True:
-            async with self.anthropic_client.messages.stream(
+            final_message = await context.anthropic_client.async_create(
                 model="claude-3-7-sonnet-latest", 
                 max_tokens=10000,
                 temperature=0,
                 system=LAYOUT_IMPLEMENTATION_SYSTEM_PROMPT,
                 tools=LAYOUT_TOOLS_DEFINITIONS,
-                messages=messages
-            ) as stream:
-                final_message = await stream.get_final_message()
+                messages=messages)
 
             messages.append({
                 "role": "assistant", 
@@ -112,7 +110,7 @@ class LayoutImplementationAgent:
                 "content": tool_results
             })
 
-    async def implement_layout(self, layout: dict, facts: str):
+    async def implement_layout(self, layout: dict, facts: str, context: Context):
         """Implement a layout by creating template files"""
         layout_name = layout["name"]
         layout_description = layout["description"]
@@ -127,7 +125,7 @@ Create a template file named templates/layouts/{layout_name}.html"""
 
         messages = [{"role": "user", "content": prompt}]
 
-        await self.run_anthropic_conversation(messages)
+        await self.run_anthropic_conversation(messages, context)
 
 class ExecuteLayouts(Phase):
     def run(self, state: State, context: Context) -> dict:
@@ -140,7 +138,7 @@ class ExecuteLayouts(Phase):
         agent = LayoutImplementationAgent(project_path)
         async def process_layouts_async():
             tasks = [
-                agent.implement_layout(layout, facts)
+                agent.implement_layout(layout, facts, context)
                 for layout in layouts
             ]
 

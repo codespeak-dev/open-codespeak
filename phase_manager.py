@@ -10,17 +10,25 @@ from pathlib import Path
 from typing import Any
 
 from colors import Colors
-from data_serializer import decode_data, encode_data, json_file, validate_schema_entry
+from data_serializer import decode_data, encode_data, validate_schema_entry
 from git_helper import GitHelper
 from incremental_mode import IncrementalMode
+from llm_cache.anthropic_cached import CachedAnthropic
 from spec_processor import SpecProcessor
 
 class Context:
-    def __init__(self, git_helper: GitHelper, incremental_mode: IncrementalMode, head_hash: str, dry_run: bool = False, verbose: bool = False):
+    def __init__(self, 
+                 git_helper: GitHelper, 
+                 incremental_mode: IncrementalMode, 
+                 anthropic_client: CachedAnthropic,
+                 head_hash: str, 
+                 dry_run: bool = False, 
+                 verbose: bool = False):
         self.verbose = verbose
         self.git_helper = git_helper
         self.dry_run = dry_run
         self.incremental_mode = incremental_mode
+        self.anthropic_client = anthropic_client
         self.head_hash = head_hash
 
 class State:

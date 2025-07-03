@@ -105,8 +105,8 @@ class EnsureServerStarts(Phase):
                 proc.terminate()
                 proc.wait(timeout=3)
 
-    def try_to_fix_server(self, project_path: str, output: str | None) -> None:
-        agent = ImplementationAgent(project_path)
+    def try_to_fix_server(self, project_path: str, output: str | None, context: Context) -> None:
+        agent = ImplementationAgent(project_path, context)
 
         user_prompt = f"Here's the server output: \n{output}" if output else "Server did not produce any output"
         messages = [{"role": "user", "content": user_prompt}]
@@ -127,7 +127,7 @@ class EnsureServerStarts(Phase):
                     break
                 else:
                     print(f"Attempt {i + 1}: Server failed to start. Output:[[[\n{output}\n]]]")
-                    self.try_to_fix_server(project_path, output)
+                    self.try_to_fix_server(project_path, output, context)
             except Exception as e:
                 print(f"Attempt {i + 1}: Exception occurred: {e}")
         else:

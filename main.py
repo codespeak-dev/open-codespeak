@@ -8,6 +8,8 @@ from data_serializer import text_file
 from extract_entities import ExtractEntities
 from generate_django_project import GenerateDjangoProject
 from generate_models import GenerateModels
+from llm_cache.anthropic_cached import CachedAnthropic
+from llm_cache.cache_utils import PathSanitizer
 from makemigrations import MakeMigrations
 from migrate import Migrate
 from generate_data_model_tests import GenerateDataModelTests
@@ -98,7 +100,14 @@ def main():
         print(f"{Colors.BRIGHT_RED}Error: failed to get HEAD hash{Colors.END}")
         return
 
-    context = Context(git_helper=git_helper, incremental_mode=incremental_mode, head_hash=head_hash, dry_run=args.dry_run, verbose=args.verbose)
+
+    context = Context(
+        git_helper=git_helper, 
+        incremental_mode=incremental_mode, 
+        anthropic_client = CachedAnthropic(base_dir=project_path, key_sanitizer=PathSanitizer(project_path)),
+        head_hash=head_hash, 
+        dry_run=args.dry_run, 
+        verbose=args.verbose)
 
     pm = PhaseManager(
         [

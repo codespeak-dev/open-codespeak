@@ -4,7 +4,6 @@ import sys
 import json
 from typing import Any
 from colors import Colors
-import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_step
 
@@ -181,15 +180,13 @@ def execute_tool(tool_name: str, tool_input: dict[str, Any], project_path: str) 
         return error_msg
 
 
-def fix_issues(project_path: str, test_file_path: str, test_code: str, error_output: str, message_history: list | None = None) -> tuple[bool, str, str]:
+def fix_issues(project_path: str, test_file_path: str, test_code: str, error_output: str, context: Context, message_history: list | None = None) -> tuple[bool, str, str]:
     """Use Claude with tools to fix issues revealed by integration tests"""
     print(f"\n{Colors.BRIGHT_YELLOW}🔍 Starting automated issue fixing process{Colors.END}")
     print(f"   Project path: {project_path}")
     print(f"   Test code length: {len(test_code)} characters")
     print(f"   Error output length: {len(error_output)} characters")
     print(f"   Message history length: {len(message_history) if message_history else 0} messages")
-
-    client = llm_cache.Anthropic()
 
     if test_file_path.find(project_path) != 0:
         raise ValueError(f"Test file path {test_file_path} is not a child of project path {project_path}")
@@ -275,7 +272,7 @@ Please use the tools to analyze the project structure, identify what's causing t
 
         try:
             print(f"   🧠 Calling Claude API with {len(messages)} messages...")
-            response = client.messages.create(
+            response = context.anthropic_client.create(
                 model="claude-3-7-sonnet-latest",
                 max_tokens=8192,
                 temperature=0,
@@ -402,7 +399,7 @@ class ReconcileDataModelTests(Phase):
                     if attempt < max_retries:
                         print(f"\n{Colors.BRIGHT_YELLOW}Analyzing and fixing issues...{Colors.END}")
 
-                        fix_success, fix_message, updated_test_code = fix_issues(project_path, test_file_path, test_code, output, message_history)
+                        fix_success, fix_message, updated_test_code = fix_issues(project_path, test_file_path, test_code, output, context, message_history)
 
                         if fix_success:
                             print(f"{Colors.BRIGHT_GREEN}Successfully applied fixes{Colors.END}")

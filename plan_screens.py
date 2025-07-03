@@ -1,6 +1,5 @@
 import os
 from data_serializer import text_file
-import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 
@@ -32,8 +31,7 @@ Here's an example of few user stories for a blog:
 IMPORTANT: do not output anything except <group> and <story> sections
 """
 
-def plan_stories_with_claude(spec: str, project_path: str) -> str:
-    client = llm_cache.Anthropic()
+def plan_stories_with_claude(spec: str, project_path: str, context: Context) -> str:
 
     with with_streaming_step("Planning user stories and screens...") as (input_tokens, output_tokens):
         response_text = ""
@@ -42,7 +40,7 @@ def plan_stories_with_claude(spec: str, project_path: str) -> str:
 
         input_tokens[0] = len(prompt.split()) + len(PLAN_SCREENS_SYSTEM_PROMPT.split())
 
-        with client.messages.stream(
+        with context.anthropic_client.stream(
             model="claude-sonnet-4-20250514",
             max_tokens=8192,
             temperature=0,
@@ -70,7 +68,7 @@ class PlanScreens(Phase):
         spec = state["spec"]
         project_path = state["project_path"]
 
-        stories = plan_stories_with_claude(spec, project_path)
+        stories = plan_stories_with_claude(spec, project_path, context)
 
         return {
             "stories": stories

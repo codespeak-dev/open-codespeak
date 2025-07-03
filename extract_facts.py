@@ -1,4 +1,3 @@
-import llm_cache
 from colors import Colors
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
@@ -13,8 +12,7 @@ Return a list of facts in the following format:
 - ...
 """
 
-def extract_facts(stories: str, spec: str) -> str:
-    client = llm_cache.Anthropic()
+def extract_facts(stories: str, spec: str, context: Context) -> str:
 
     with with_streaming_step("Extracting general facts...") as (input_tokens, output_tokens):
         content = f"<spec>\n{spec}\n</spec>\n<stories>\n{stories}\n</stories>"
@@ -24,7 +22,7 @@ def extract_facts(stories: str, spec: str) -> str:
         print(content)
 
         response_text = ""
-        with client.messages.stream(
+        with context.anthropic_client.stream(
             model="claude-3-7-sonnet-latest",
             max_tokens=16000,
             temperature=0,
@@ -49,7 +47,7 @@ class ExtractFacts(Phase):
 
         verbose = context.verbose if context else False
 
-        facts = extract_facts(stories, spec)
+        facts = extract_facts(stories, spec, context)
 
         if verbose:
             print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Extracted Facts:{Colors.END}")

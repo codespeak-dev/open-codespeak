@@ -3,7 +3,6 @@ import subprocess
 import sys
 
 from colors import Colors
-import llm_cache
 from with_step import with_step
 
 from phase_manager import State, Phase, Context
@@ -29,12 +28,11 @@ def add_import_to_file(file_path: str, import_statement: str):
         with open(file_path, 'w') as f:
             f.writelines(lines)        
 
-def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
+def fix_missing_imports(error_output: str, models_file_path: str, context: Context) -> bool:
     """
     Use Claude to detect missing imports from error output and fix them using tool calls.
     Returns True if fixes were applied, False otherwise.
     """
-    client = llm_cache.Anthropic()
     system_prompt = (
         "You are an expert Python/Django developer. Given an error output from Django makemigrations, "
         "identify any missing import statements needed to fix NameError issues. "
@@ -59,7 +57,7 @@ def fix_missing_imports(error_output: str, models_file_path: str) -> bool:
         }
     ]
 
-    response = client.messages.create(
+    response = context.anthropic_client.create(
         model="claude-3-7-sonnet-latest",
         max_tokens=512,
         temperature=0,
@@ -107,7 +105,7 @@ class MakeMigrations(Phase):
 
                     if attempt < max_retries - 1 and "NameError" in e.stderr:
                         print(f"  {Colors.BRIGHT_YELLOW}→{Colors.END} Detected missing imports, auto-fixing...")
-                        if fix_missing_imports(e.stderr, models_file_path):
+                        if fix_missing_imports(e.stderr, models_file_path, context):
                             print(f"  {Colors.BRIGHT_GREEN}✓{Colors.END} Imports fixed, retrying...")
                             continue  # Retry with fixed imports
                     # Re-raise the error if we can't fix it or max retries reached                    

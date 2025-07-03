@@ -1,7 +1,5 @@
-import json
 from colors import Colors
 from data_serializer import json_file
-import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
@@ -98,12 +96,11 @@ ENTITY_TOOLS_SCHEMA: list[ToolParam] = [
 ]
 
 
-def extract_models_and_fields(spec: str, existing_entities=None, spec_diff=None) -> list[dict]:
+def extract_models_and_fields(spec: str, context: Context, existing_entities=None, spec_diff=None) -> list[dict]:
     """
     Uses Claude to extract a list of Django models and their fields from the prompt.
     Returns a list of Entity objects with fields and relationships.
     """
-    client = llm_cache.Anthropic()
 
     with with_streaming_step("Figuring out the data model...") as (input_tokens, output_tokens):
         system_prompt = "You are an expert Django developer and an excellent data modeler."
@@ -113,7 +110,7 @@ def extract_models_and_fields(spec: str, existing_entities=None, spec_diff=None)
         user_prompt = load_template_jinja("prompts/extract_entities.j2", existing_entities=existing_entities, spec_diff=spec_diff, spec=spec)
         input_tokens[0] = len((system_prompt + user_prompt).split())
 
-        message = client.messages.create(
+        message = context.anthropic_client.create(
             model="claude-3-7-sonnet-latest",
             max_tokens=10000,
             temperature=1,
@@ -162,7 +159,7 @@ class ExtractEntities(Phase):
         existing_entities = state.get("entities", [])
         spec_diff = state.get("spec_diff")
 
-        entities_data = extract_models_and_fields(spec, existing_entities=existing_entities, spec_diff=spec_diff)
+        entities_data = extract_models_and_fields(spec, context, existing_entities=existing_entities, spec_diff=spec_diff)
 
         if len(entities_data) > 0:
             display_entities(to_entities(entities_data))

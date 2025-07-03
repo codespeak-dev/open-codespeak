@@ -1,6 +1,5 @@
 from anthropic import APIStatusError
 from anthropic.types import ToolParam
-import llm_cache
 import os
 import json
 import difflib
@@ -10,6 +9,7 @@ from typing import cast
 from colors import Colors
 from google import genai
 from google.genai import types as gemini_types
+from phase_manager import Context
 from tree_printer import tree_section, tree_info
 from fileutils import format_file_content
 
@@ -163,6 +163,7 @@ class ImplementationAgent:
     def __init__(
         self,
         project_path: str,
+        context: Context,
         provider: str | None = None,
         facts: str | None = None,
         system_prompt_override: str | None = None,
@@ -188,7 +189,7 @@ class ImplementationAgent:
 
         # Initialize clients based on provider
         if self.provider == 'anthropic':
-            self.anthropic_client = llm_cache.Anthropic()
+            self.anthropic_client = context.anthropic_client
             print(f"  Anthropic client initialized")
         elif self.provider == 'gemini':
             # Initialize Gemini client
@@ -759,7 +760,7 @@ class ImplementationAgent:
 
             # Use the streaming helper for cleaner code with retry logic
             def make_streaming_request():
-                with self.anthropic_client.messages.stream(
+                with self.anthropic_client.stream(
                     model="claude-sonnet-4-20250514", 
                     max_tokens=10000,
                     temperature=0,

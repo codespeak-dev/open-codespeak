@@ -1,4 +1,3 @@
-import llm_cache
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
@@ -30,8 +29,7 @@ Example of output:
 The output will be parsed by XML parser. It must be valid XML.
 """
 
-def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
-    client = llm_cache.Anthropic()
+def plan_work_with_claude(spec: str, stories: str, project_path: str, context: Context) -> str:
 
     with with_streaming_step("Planning work...") as (input_tokens, output_tokens):
         response_text = ""
@@ -39,7 +37,7 @@ def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
 
         input_tokens[0] = len(prompt.split()) + len(PLAN_SCREENS_SYSTEM_PROMPT.split())
 
-        with client.messages.stream(
+        with context.anthropic_client.stream(
             model="claude-sonnet-4-20250514",
             max_tokens=8192,
             temperature=0,
@@ -62,7 +60,7 @@ class PlanWork(Phase):
 
         stories = state["stories"]
 
-        plan = plan_work_with_claude(spec, stories, project_path)
+        plan = plan_work_with_claude(spec, stories, project_path, context)
 
         return {
             "work": plan
