@@ -99,6 +99,19 @@ new_project() {
         # Do not start history with actual commit with the spec, as it makes it harder to rebase onto it. Instead, create an empty commit.
         git commit -m "Initial commit" --author="Codespeak <gen@codespeak.dev>" --allow-empty
 
+        # Create .gitignore file with standard Python ignores
+        cat > .gitignore <<EOF
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+EOF
+
+        # Add .gitignore to git and commit
+        git add .gitignore
+        git commit -m "Add .gitignore" --author="Codespeak <gen@codespeak.dev>"
+
+
         # Commit the copied spec file to git
         git add spec.md
         git commit -m "Add spec.md" -m "Initial spec file for project" --author="Codespeak <gen@codespeak.dev>"
@@ -118,9 +131,9 @@ new_project() {
     fi
     
     # Run codespeak compile
-    echo "Running codespeak..."    
-    
-    ./codespeak "${codespeak_args[@]}"
+    echo "Running codespeak ${codespeak_args[@]}"
+
+#    ./codespeak "${codespeak_args[@]}"
 }
 
 # Function to show current project
