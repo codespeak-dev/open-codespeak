@@ -5,7 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 from extract_entities import Entity, to_entities
 from phase_manager import State, Phase, Context
 
-def generate_models_from_template(project_path: str, project_name: str, entities: List[Entity], app_name: str = "web"):
+def generate_models_from_template(project_path: str, project_name: str, entities: list[Entity], app_name: str = "web"):
     env = Environment(loader=FileSystemLoader('app_template'))
     context = {
         'project_name': project_name,

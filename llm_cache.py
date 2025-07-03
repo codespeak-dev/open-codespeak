@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterator, Optional, List
+from typing import Any, Dict, Iterator, Optional
 from contextlib import contextmanager
 from pathlib import Path
 import anthropic
@@ -55,7 +55,7 @@ class CachedMessage:
 class CachedMessageStream:
     """A wrapper that mimics Anthropic's MessageStream but replays cached responses"""
     
-    def __init__(self, cached_events: List[Dict[str, Any]], final_message: Message):
+    def __init__(self, cached_events: list[Dict[str, Any]], final_message: Message):
         self.cached_events = cached_events
         self.final_message = Message.model_validate(final_message) if final_message is not None else None
         self._text_buffer = []

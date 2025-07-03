@@ -1,5 +1,5 @@
 from colors import Colors
-from typing import Optional, List
+from typing import Optional
 from contextlib import contextmanager
 
 class TreePrinter:
@@ -7,7 +7,7 @@ class TreePrinter:
     
     def __init__(self):
         self.indent_level = 0
-        self.active_sections: List[str] = []
+        self.active_sections: list[str] = []
     
     def _get_indent(self, level: int = 0) -> str:
         """Get indentation string for the current level"""

@@ -7,7 +7,6 @@ Can be run standalone or integrated into the build process.
 import os
 import sys
 import glob
-from typing import List
 
 
 def clean_empty_lines_with_tabs(file_path: str) -> bool:
@@ -43,7 +42,7 @@ def clean_empty_lines_with_tabs(file_path: str) -> bool:
         return False
 
 
-def find_python_files(directory: str = ".") -> List[str]:
+def find_python_files(directory: str = ".") -> list[str]:
     """Find all Python files in the given directory recursively."""
     python_files = []
     skip_dirs = {'.git', '.venv', '__pycache__', '.pytest_cache', 'venv', 'env'}

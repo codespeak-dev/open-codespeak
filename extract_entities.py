@@ -5,7 +5,7 @@ import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
-from typing import Dict, List
+from typing import Dict
 from anthropic.types import ToolParam
 
 SYSTEM_PROMPT = """
@@ -30,8 +30,8 @@ class EntityRelationship(BaseModel):
 
 class Entity(BaseModel):
     name: str
-    fields: List[EntityField]
-    relationships: List[EntityRelationship] = []
+    fields: list[EntityField]
+    relationships: list[EntityRelationship] = []
 
 def to_entities(raw_data):
     # Convert tool response format to Entity objects
@@ -109,7 +109,7 @@ ENTITY_TOOLS_SCHEMA: list[ToolParam] = [
 ]
 
 
-def extract_models_and_fields(prompt: str) -> List[dict]:
+def extract_models_and_fields(prompt: str) -> list[dict]:
     """
     Uses Claude to extract a list of Django models and their fields from the prompt.
     Returns a list of Entity objects with fields and relationships.
@@ -150,7 +150,7 @@ def extract_models_and_fields(prompt: str) -> List[dict]:
 
         return entities_data
 
-def display_entities(entities: List[Entity]):
+def display_entities(entities: list[Entity]):
     """Display entities in a formatted way"""
     print("Entities extracted:")
     for entity in entities:

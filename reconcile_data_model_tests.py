@@ -181,7 +181,7 @@ def execute_tool(tool_name: str, tool_input: Dict[str, Any], project_path: str) 
         return error_msg
 
 
-def fix_issues(project_path: str, test_file_path: str, test_code: str, error_output: str, message_history: List = None) -> Tuple[bool, str, str]:
+def fix_issues(project_path: str, test_file_path: str, test_code: str, error_output: str, message_history: list | None = None) -> Tuple[bool, str, str]:
     """Use Claude with tools to fix issues revealed by integration tests"""
     print(f"\n{Colors.BRIGHT_YELLOW}🔍 Starting automated issue fixing process{Colors.END}")
     print(f"   Project path: {project_path}")
