@@ -134,6 +134,7 @@ For each step, parse the overall_goal, key_knowledge, current_plan, and any scre
 Create clean, functional Django code that follows best practices.
 Do not remove any FastAPI related code.
 Follow the same style and structure as the existing code.
+When you are done, you do not need to summarize the work performed.
 
 ## Available Tools
 
@@ -273,7 +274,11 @@ class ImplementationAgent:
         '*.pyc',
         '*.pyo',
         '__pycache__',
-        '.DS_Store'
+        '.DS_Store',
+        '*.txt',
+        'codespeak_state.json',
+        'spec.md',
+        'spec.processed.md'
     ]
 
     def should_ignore_file(self, filename: str) -> bool:
