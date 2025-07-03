@@ -3,7 +3,7 @@ from anthropic import AsyncAnthropic
 from anthropic.types import ToolParam
 import os
 import json
-from typing import cast, Optional
+from typing import cast
 from colors import Colors
 from phase_manager import State, Phase, Context
 from tree_printer import tree_section, tree_success, tree_error
@@ -130,7 +130,7 @@ Create a template file named templates/layouts/{layout_name}.html"""
         await self.run_anthropic_conversation(messages)
 
 class ExecuteLayouts(Phase):
-    def run(self, state: State, context: Optional[Context] = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         layouts = state["layouts"]
         facts = state["facts"]
         project_path = state["project_path"]

@@ -104,7 +104,7 @@ def extract_layouts_with_claude(stories: str, spec: str) -> list[dict]:
         # return result.strip()
 
 class ExtractLayouts(Phase):
-    def run(self, state: State, context: Optional[Context] = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         stories = state.get("stories", "")
         spec = state["spec"]
         verbose = context.verbose if context else False

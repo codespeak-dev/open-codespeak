@@ -56,7 +56,7 @@ def plan_work_with_claude(spec: str, stories: str, project_path: str) -> str:
 class PlanWork(Phase):
     description = "Generate the work to be executed (work.txt)"
 
-    def run(self, state: State, context: Context | None = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]
         verbose = context.verbose if context else False

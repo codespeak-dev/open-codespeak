@@ -7,7 +7,7 @@ from implementation_agent import ImplementationAgent
 class ExecuteWork(Phase):
     description = "Execute the planned work items"
 
-    def run(self, state: State, context: Context | None = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         print(f"{Colors.BRIGHT_MAGENTA}=== EXECUTE WORK PHASE STARTED ==={Colors.END}")
 
         work = state["work"]

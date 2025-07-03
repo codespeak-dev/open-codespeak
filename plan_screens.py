@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict
 import os
 from data_serializer import text_file
 import llm_cache
@@ -67,7 +67,7 @@ def read_models_file(project_path: str) -> str:
 class PlanScreens(Phase):
     description = "Generate a set of UI screens to implement (stories.txt)"
 
-    def run(self, state: State, context: Optional[Context] = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         spec = state["spec"]
         project_path = state["project_path"]
 

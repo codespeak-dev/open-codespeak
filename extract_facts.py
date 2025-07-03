@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict
 import llm_cache
 from colors import Colors
 from data_serializer import text_file
@@ -44,7 +44,7 @@ def extract_facts(stories: str, spec: str) -> str:
         return response_text
 
 class ExtractFacts(Phase):
-    def run(self, state: State, context: Optional[Context] = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         stories = state.get("stories", "")
         spec = state["spec"]
 

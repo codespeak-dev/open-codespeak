@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 from colors import Colors
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
@@ -68,7 +67,7 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
 class GenerateDataModelTests(Phase):
     description = "Generates data model tests for the Django project"
 
-    def run(self, state: State, context: Optional[Context] = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         # Skip if entities are empty
         entities = state.get("entities", [])
         if not entities:

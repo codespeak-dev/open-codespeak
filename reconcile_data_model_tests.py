@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 import json
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Tuple
 from colors import Colors
 import llm_cache
 from phase_manager import State, Phase, Context
@@ -340,7 +340,7 @@ Please use the tools to analyze the project structure, identify what's causing t
 class ReconcileDataModelTests(Phase):
     description = "Fix failing data model tests"
 
-    def run(self, state: State, context: Optional[Context] = None) -> dict:
+    def run(self, state: State, context: Context) -> dict:
         entities = state.get("entities", [])
         if not entities:
             print(f"{Colors.BRIGHT_YELLOW}Skipping integration test reconciliation - no entities found{Colors.END}")

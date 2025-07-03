@@ -1,6 +1,5 @@
 import os
 import re
-from typing import List
 from jinja2 import Environment, FileSystemLoader
 
 from extract_entities import Entity, to_entities
@@ -38,7 +37,7 @@ class GenerateModels(Phase):
     def run(self, state: State, context: Context) -> dict:
         project_name = state["project_name"]
         project_path = state["project_path"]
-        entities = state["entities"]
+        entities: list[Entity] = state["entities"]
         print(f"Generating Django models in {project_path}")
         generate_models_from_template(project_path, project_name, to_entities(entities), "web")
         return {}
