@@ -66,7 +66,6 @@ class ExecuteWork(Phase):
             total_api_duration += step_api_duration
 
             print(f"{Colors.BRIGHT_GREEN}[PROCESSING]{Colors.END} Step {i+1} processing completed")
-            print(f"  Agent history entries so far: {len(agent.history)}")
             print()
 
         # Format duration for display
@@ -77,7 +76,6 @@ class ExecuteWork(Phase):
         print(f"{Colors.BRIGHT_YELLOW}[SUMMARY]{Colors.END} Final summary:")
         print(f"  Provider used: {provider}")
         print(f"  Steps processed: {len(steps)}")
-        print(f"  Agent history entries: {len(agent.history)}")
         print(f"  Total duration ({provider}, API): {minutes}m {seconds}s")
 
 
