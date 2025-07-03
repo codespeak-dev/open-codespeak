@@ -4,6 +4,7 @@ from pathlib import Path
 import anthropic
 from anthropic.lib.streaming import MessageStream
 from anthropic.types import Message
+import os
 
 from file_based_cache import FileBasedCache
 
@@ -183,4 +184,7 @@ def create_cached_client(api_key: Optional[str] = None) -> CachedAnthropicClient
     return CachedAnthropicClient(api_key=api_key)
 
 
-Anthropic = CachedAnthropicClient
+if os.getenv("LLM_CACHE_ENABLED") == "1":
+    Anthropic = CachedAnthropicClient
+else:
+    Anthropic = anthropic.Anthropic
