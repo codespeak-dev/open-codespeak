@@ -1,5 +1,6 @@
 import hashlib
 from pathlib import Path
+import re
 from typing import Any
 import json
 
@@ -60,9 +61,24 @@ def make_serializable(obj, is_key: bool = False):
 
 
 class FileBasedCache:
+    VERSION = (0, 0, 1)
+    VERSION_STRING = ".".join(map(str, VERSION))
+
     def __init__(self, cache_dir: Path):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        version_file = self.cache_dir.joinpath(".version")
+        if not version_file.exists():
+            version_file.write_text(self.VERSION_STRING)
+        else:
+            version = version_file.read_text().strip()
+            # don't accept higher versions
+            # parse version from file
+            match = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+            if not match:
+                raise ValueError(f"Wrong version format in {version_file}: {version}")
+            if int(match.group(1)) > self.VERSION[0] or int(match.group(2)) > self.VERSION[1] or int(match.group(3)) > self.VERSION[2]:
+                raise ValueError(f"Cache version mismatch: {version} > {self.VERSION_STRING}")
 
     def _file_name(self, key: str, file_type: str) -> Path:
         return self.cache_dir.joinpath(f"{key}.{file_type}")
@@ -113,5 +129,3 @@ if __name__ == "__main__":
     print(cache.get(CacheKey({"a": "b"})))
     print(cache.get(CacheKey({"a": "b", 2: 1})))
     print(cache.get(CacheKey("key")))
-    import sys
-    sys.exit()
