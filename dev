@@ -100,12 +100,7 @@ new_project() {
         git commit -m "Initial commit" --author="Codespeak <gen@codespeak.dev>" --allow-empty
 
         # Create .gitignore file with standard Python ignores
-        cat > .gitignore <<EOF
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-EOF
+        cp ../../app_template/.gitignore .gitignore
 
         # Add .gitignore to git and commit
         git add .gitignore
