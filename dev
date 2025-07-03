@@ -128,7 +128,7 @@ new_project() {
     # Run codespeak compile
     echo "Running codespeak ${codespeak_args[@]}"
 
-#    ./codespeak "${codespeak_args[@]}"
+    ./codespeak "${codespeak_args[@]}"
 }
 
 # Function to show current project
