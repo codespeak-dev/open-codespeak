@@ -12,10 +12,10 @@ class SubstringBasedSanitizer:
         
         self.substrings = substrings
 
-    def sanitize(self, text: str) -> str:
+    def sanitize_str(self, text: str) -> str:
         return self._perform_replacement(text, self.substrings)
 
-    def desanitize(self, text: str) -> str:
+    def desanitize_str(self, text: str) -> str:
         return self._perform_replacement(text, reversed([(b, a) for a, b in self.substrings]))
 
     def _perform_replacement(self, text, substrings):

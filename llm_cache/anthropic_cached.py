@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from copy import deepcopy
 from typing import Iterator
 from anthropic import Anthropic, AsyncAnthropic
 from anthropic.types import Message
@@ -12,6 +13,91 @@ DEV_CACHE_DIR = "test_outputs/.llm_cache"
 REPORT_CACHE_MISSES = True
 
 
+class AnthropicSanitizer(Sanitizer):
+
+    def __init__(self, delegate: Sanitizer = None):
+        self.delegate = delegate or Sanitizer()
+
+    def sanitize_str(self, text: str) -> str:
+        return self.delegate.sanitize_str(text)
+    
+    def desanitize_str(self, text: str) -> str:
+        return self.delegate.desanitize_str(text)
+
+    def sanitize_dict(self, d: dict) -> dict:
+        """
+        {
+        "__method_name": "anthropic.resources.messages.messages.Messages.stream",
+        "kwargs": {
+            "max_tokens": 10000,
+            "messages": [
+            {
+                "content": "...",
+                "role": "user"
+            },
+            {
+                "content": [
+                {
+                    "__pydantic_model_module": "anthropic.types.text_block",
+                    "__pydantic_model_name": "TextBlock",
+                    "model_dump": {
+                    "citations": null,
+                    "text": "...",
+                    "type": "text"
+                    }
+                },
+                {
+                    "__pydantic_model_module": "anthropic.types.tool_use_block",
+                    "__pydantic_model_name": "ToolUseBlock",
+                    "model_dump": {
+                    "id": "toolu_01Pgs9hV9pboeGs7oEiWWEfr",
+                    "input": {
+                        "path": "."
+                    },
+                    "name": "list_files",
+                    "type": "tool_use"
+                    }
+                }
+                ],
+                "role": "assistant"
+            },
+            {
+                "content": [
+                {
+                    "content": "...",
+                    "tool_use_id": "toolu_01Pgs9hV9pboeGs7oEiWWEfr",
+                    "type": "tool_result"
+                }
+                ],
+                "role": "user"
+            },
+        """
+        d_copy = deepcopy(d)
+        if d_copy.get("__method_name") == "anthropic.resources.messages.messages.Messages.stream":
+            messages = d_copy.get("kwargs", {}).get("messages", [])
+            id_map: dict[str, str] = {}
+            counter = 1
+            for message in messages:
+                for content in message.get("content", []):
+                    if not isinstance(content, dict):
+                        continue
+                    if content.get("__pydantic_model_module") == "anthropic.types.tool_use_block" and content.get("__pydantic_model_name") == "ToolUseBlock":
+                        random_id = content.get("model_dump", {}).get("id")
+                        if random_id is None:
+                            continue
+                        if random_id not in id_map:
+                            sequential_id = f"toolu_{counter}"
+                            id_map[random_id] = sequential_id
+                            counter += 1
+                        else:
+                            sequential_id = id_map[random_id]
+                        content["model_dump"]["id"] = sequential_id
+                    elif "tool_use_id" in content:  
+                        random_id = content["tool_use_id"]
+                        content["tool_use_id"] = id_map.get(random_id, random_id)
+        return d_copy
+
+
 class CachedAnthropic:
     client: Anthropic
     async_client: AsyncAnthropic
@@ -21,7 +107,7 @@ class CachedAnthropic:
         self.client = Anthropic()
         self.async_client = AsyncAnthropic()
         self.base_dir = base_dir
-        self.cache = FileBasedCache(Path(cache_dir or DEV_CACHE_DIR), sanitizer=sanitizer)
+        self.cache = FileBasedCache(Path(cache_dir or DEV_CACHE_DIR), sanitizer=AnthropicSanitizer(sanitizer))
         self.logger = logging.getLogger(CachedAnthropic.__class__.__qualname__)
         
     def create(self, **kwargs) -> Message:

@@ -6,11 +6,17 @@ import json
 
 
 class Sanitizer:
-    def sanitize(self, text: str) -> str:
+    def sanitize_str(self, text: str) -> str:
         return text
     
-    def desanitize(self, text: str) -> str:
+    def desanitize_str(self, text: str) -> str:
         return text
+    
+    def sanitize_dict(self, d: dict) -> dict:
+        """
+        Only called on a dict as a whole, should not make recursive calls, they will be handled by the serializer
+        """
+        return d
 
 class Serializer:
     def __init__(self, sanitizer: Sanitizer = Sanitizer()):
@@ -19,19 +25,21 @@ class Serializer:
     def make_serializable(self, obj, is_key: bool = False):
         """Convert params to a serializable format, handling Pydantic models"""
         if hasattr(obj, 'model_dump'): 
-            return {
+            return self.sanitizer.sanitize_dict({
                 "__pydantic_model_module": obj.__class__.__module__,
                 "__pydantic_model_name": obj.__class__.__name__,
                 "model_dump": self.make_serializable(obj.model_dump(), is_key=is_key)
-            }
+            })
         elif isinstance(obj, dict):
-            return {self.make_serializable(k, is_key=True): self.make_serializable(v) for k, v in obj.items()}
+            return self.sanitizer.sanitize_dict(
+                {self.make_serializable(k, is_key=True): self.make_serializable(v) for k, v in obj.items()}
+            )
         elif isinstance(obj, (list, tuple)):
             return [self.make_serializable(item) for item in obj]
         elif hasattr(obj, '__dict__'):
             return self.make_serializable(obj.__dict__, is_key=is_key)
         elif isinstance(obj, str):
-            return self.sanitizer.sanitize(obj)
+            return self.sanitizer.sanitize_str(obj)
         elif isinstance(obj, (int, float, bool)):
             if is_key:
                 return str(obj)
@@ -61,7 +69,7 @@ class Serializer:
         elif isinstance(obj, tuple):
             return tuple(self.deserialize_with_pydantic(item) for item in obj)
         elif isinstance(obj, str):
-            return self.sanitizer.desanitize(obj)
+            return self.sanitizer.desanitize_str(obj)
         else:
             return obj
     
