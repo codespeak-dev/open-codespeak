@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import sys
 import threading
 import time
+import logging
 
 from yaspin import yaspin
 from yaspin.spinners import Spinners
@@ -31,7 +32,8 @@ def with_step(text):
             spinner.stop()
             sys.stdout.write("\r" + " " * (len(spinner.text) + 10) + "\r")
             sys.stdout.flush()
-            print(f"{text} complete in {elapsed[0]}s.")
+            logger = logging.getLogger("with_step")
+            logger.info(f"{text} complete in {elapsed[0]}s.")
 
 @contextmanager
 def with_streaming_step(text):
@@ -60,7 +62,8 @@ def with_streaming_step(text):
             spinner.stop()
             sys.stdout.write("\r" + " " * (len(spinner.text) + 10) + "\r")
             sys.stdout.flush()
+            logger = logging.getLogger("with_streaming_step")
             if output_tokens[0] > 0:
-                print(f"{text} complete in {Colors.GREY}{Colors.DIM}{elapsed[0]}s (↑ {input_tokens[0]} + ↓ {output_tokens[0]} tokens){Colors.END}.")
+                logger.info(f"{text} complete in {Colors.GREY}{Colors.DIM}{elapsed[0]}s (↑ {input_tokens[0]} + ↓ {output_tokens[0]} tokens){Colors.END}.")
             else:
-                print(f"{text} complete in {Colors.GREY}{Colors.DIM}{elapsed[0]}s{Colors.END}.")
+                logger.info(f"{text} complete in {Colors.GREY}{Colors.DIM}{elapsed[0]}s{Colors.END}.")

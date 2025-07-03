@@ -1,10 +1,14 @@
 import subprocess
 import sys
+import logging
 
 from phase_manager import State, Phase, Context
 from with_step import with_step
 
 class Migrate(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
     description = "Run database migrations"
 
     def run(self, state: State, context: Context) -> dict:
@@ -15,12 +19,12 @@ class Migrate(Phase):
                 subprocess.run([sys.executable, "manage.py", "migrate"], cwd=project_path, check=True, capture_output=True)
             except subprocess.CalledProcessError as e:
                 if e.stdout:
-                    print(e.stdout.decode())
+                    self.logger.info(e.stdout.decode())
                 if e.stderr:
-                    print(e.stderr.decode())
+                    self.logger.info(e.stderr.decode())
                 raise
         with with_step("Running migrate..."):
             migrate()
-        print("migrate complete.")
+        self.logger.info("migrate complete.")
 
         return {}

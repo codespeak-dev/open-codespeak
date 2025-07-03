@@ -1,4 +1,5 @@
 import json
+import logging
 from anthropic.types import ToolParam
 from colors import Colors
 from data_serializer import text_file
@@ -99,6 +100,10 @@ def extract_layouts_with_claude(stories: str, spec: str, context: Context) -> li
         return layouts_data
 
 class ExtractLayouts(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
+
     def run(self, state: State, context: Context) -> dict:
         stories = state.get("stories", "")
         spec = state["spec"]
@@ -107,11 +112,11 @@ class ExtractLayouts(Phase):
         layouts = extract_layouts_with_claude(stories, spec, context)
 
         if verbose:
-            print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned Layouts:{Colors.END}")
-            print(json.dumps(layouts, indent=2))
+            self.logger.info(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned Layouts:{Colors.END}")
+            self.logger.info(json.dumps(layouts, indent=2))
         else:
             layout_count = len(layouts)
-            print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned {layout_count} layouts{Colors.END}")
+            self.logger.info(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned {layout_count} layouts{Colors.END}")
 
         return {
             "layouts": layouts

@@ -5,6 +5,7 @@ import json
 import difflib
 import time
 import random
+import logging
 from typing import cast
 from colors import Colors
 from google import genai
@@ -172,17 +173,19 @@ class ImplementationAgent:
         tools_prompt_override: str | None = None,
         check_read_before_write: bool = True,
     ):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
         self._system_prompt = system_prompt_override or IMPLEMENTATION_SYSTEM_PROMPT
         self._tools_prompt = tools_prompt_override or tools_prompt(tools_definitions_override or TOOLS_DEFINITIONS)
         self._tools_definitions = tools_definitions_override or TOOLS_DEFINITIONS
         self._check_read_before_write = check_read_before_write
 
-        print(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Creating ImplementationAgent")
-        print(f"  Project path: {project_path}")
+        self.logger.info(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Creating ImplementationAgent")
+        self.logger.info(f"  Project path: {project_path}")
 
         # Determine provider (env var or parameter)
         self.provider = provider or os.getenv('AI_PROVIDER', 'anthropic').lower()
-        print(f"  Provider: {self.provider}")
+        self.logger.info(f"  Provider: {self.provider}")
 
         self.project_path = project_path
         self.history = []
@@ -193,18 +196,18 @@ class ImplementationAgent:
         # Initialize clients based on provider
         if self.provider == 'anthropic':
             self.anthropic_client = context.anthropic_client
-            print(f"  Anthropic client initialized")
+            self.logger.info(f"  Anthropic client initialized")
         elif self.provider == 'gemini':
             # Initialize Gemini client
             api_key = os.getenv('GEMINI_API_KEY')
             if not api_key:
                 raise ValueError("GEMINI_API_KEY environment variable required for Gemini")
             self.gemini_client = genai.Client(api_key=api_key)
-            print(f"  Gemini client initialized")
+            self.logger.info(f"  Gemini client initialized")
         else:
             raise ValueError(f"Unsupported provider: {self.provider}. Use 'anthropic' or 'gemini'")
 
-        print(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Agent initialized successfully")
+        self.logger.info(f"{Colors.BRIGHT_BLUE}[AGENT INIT]{Colors.END} Agent initialized successfully")
 
     def truncate_for_debug(self, content: str, max_length: int = 500) -> str:
         """Truncate content for debugging output"""
@@ -317,19 +320,19 @@ class ImplementationAgent:
 
     def list_files(self, path: str):
         """List files in a directory with proper validation and formatting"""
-        print(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Listing files in: {path}")
+        self.logger.info(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Listing files in: {path}")
 
         full_path = os.path.join(self.project_path, path) if not os.path.isabs(path) else path
         try:
             if not os.path.exists(full_path):
                 error_msg = f"Error: Directory not found or inaccessible: {path}"
-                print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
+                self.logger.info(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
                 self.history.append(error_msg)
                 return {"success": False, "error": error_msg}
 
             if not os.path.isdir(full_path):
                 error_msg = f"Error: Path is not a directory: {path}"
-                print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
+                self.logger.info(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
                 self.history.append(error_msg)
                 return {"success": False, "error": error_msg}
 
@@ -338,7 +341,7 @@ class ImplementationAgent:
 
             if len(files) == 0:
                 result_msg = f"Directory {path} is empty."
-                print(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} {result_msg}")
+                self.logger.info(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} {result_msg}")
                 self.history.append(f"Listed files in {path}: empty directory")
                 return {"success": True, "result": result_msg}
 
@@ -358,7 +361,7 @@ class ImplementationAgent:
                     })
                 except Exception as e:
                     # Log error internally but don't fail the whole listing
-                    print(f"  Warning: Error accessing {file_full_path}: {e}")
+                    self.logger.info(f"  Warning: Error accessing {file_full_path}: {e}")
 
             # Sort entries (directories first, then alphabetically)
             entries.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
@@ -372,7 +375,7 @@ class ImplementationAgent:
             result_message = f"Directory listing for {path}:\n" + '\n'.join(directory_content)
             display_message = f"Listed {len(entries)} item(s)."
 
-            print(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} {display_message}")
+            self.logger.info(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} {display_message}")
             self.history.append(f"Listed files in {path}: {len(entries)} items")
             
             return {
@@ -384,7 +387,7 @@ class ImplementationAgent:
 
         except Exception as e:
             error_msg = f"Error listing directory: {str(e)}"
-            print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
             self.history.append(error_msg)
             return {"success": False, "error": error_msg}
 
@@ -431,7 +434,7 @@ class ImplementationAgent:
 
         except Exception as e:
             error_msg = f"Error reading file {file_path}: {str(e)}"
-            print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
             self.history.append(error_msg)
             return ""
 
@@ -504,19 +507,19 @@ class ImplementationAgent:
                 f.write(content)
             return True
         except Exception as e:
-            print(f"  Error writing file: {e}")
+            self.logger.info(f"  Error writing file: {e}")
             return False
 
     def edit_file(self, file_path: str, old_string: str, new_string: str, expected_replacements: int = 1):
         """Edit a file using exact string replacement with validation pipeline"""
-        print(f"{Colors.BRIGHT_YELLOW}[FILE EDIT]{Colors.END} Editing file: {file_path}")
-        print(f"  Old length: {len(old_string)}, New length: {len(new_string)}")
-        print(f"  Expected replacements: {expected_replacements}")
+        self.logger.info(f"{Colors.BRIGHT_YELLOW}[FILE EDIT]{Colors.END} Editing file: {file_path}")
+        self.logger.info(f"  Old length: {len(old_string)}, New length: {len(new_string)}")
+        self.logger.info(f"  Expected replacements: {expected_replacements}")
 
         # Validation 1: File must have been read first
         if self._check_read_before_write and file_path not in self.file_state_cache:
             error_msg = f"File must be read with read_file before editing: {file_path}"
-            print(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
             self.history.append(f"Edit failed: {error_msg}")
             return {"success": False, "error": error_msg}
 
@@ -527,14 +530,14 @@ class ImplementationAgent:
         # Validation 2: Cannot edit empty files
         if not cached_file['content'] or cached_file['content'].strip() == "":
             error_msg = "Cannot edit empty file. Use WriteTool to add content."
-            print(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
             self.history.append(f"Edit failed: {error_msg}")
             return {"success": False, "error": error_msg}
 
         # Validation 3: No-op check
         if old_string == new_string:
             error_msg = "old_string and new_string cannot be identical"
-            print(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
             self.history.append(f"Edit failed: {error_msg}")
             return {"success": False, "error": error_msg}
 
@@ -544,29 +547,29 @@ class ImplementationAgent:
 
         if occurrences == 0:
             error_msg = f"old_string not found in file: {file_path}"
-            print(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
             self.history.append(f"Edit failed: {error_msg}")
             return {"success": False, "error": error_msg}
 
         if occurrences != expected_replacements:
             error_msg = f"Expected {expected_replacements} replacements but found {occurrences}"
-            print(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
             self.history.append(f"Edit failed: {error_msg}")
             return {"success": False, "error": error_msg}
 
         # Perform replacement
-        print(f"{Colors.BRIGHT_CYAN}[EDIT]{Colors.END} Performing replacement...")
+        self.logger.info(f"{Colors.BRIGHT_CYAN}[EDIT]{Colors.END} Performing replacement...")
         new_content = content.replace(old_string, new_string, expected_replacements)
 
         # Generate diff
         diff = self.generate_diff(content, new_content, file_path)
-        print(f"{Colors.BRIGHT_CYAN}[EDIT]{Colors.END} Generated diff:")
-        print(diff)
+        self.logger.info(f"{Colors.BRIGHT_CYAN}[EDIT]{Colors.END} Generated diff:")
+        self.logger.info(diff)
 
         # Write file
         if not self.write_file_simple(file_path, new_content):
             error_msg = f"Failed to write file: {file_path}"
-            print(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[EDIT ERROR]{Colors.END} {error_msg}")
             self.history.append(f"Edit failed: {error_msg}")
             return {"success": False, "error": error_msg}
 
@@ -580,9 +583,9 @@ class ImplementationAgent:
         # Generate context snippet
         snippet = self.get_context_snippet(new_content, new_string)
 
-        print(f"{Colors.BRIGHT_GREEN}[EDIT]{Colors.END} File successfully edited")
-        print(f"  Replacements made: {expected_replacements}")
-        print(f"  Context snippet:\n{snippet}")
+        self.logger.info(f"{Colors.BRIGHT_GREEN}[EDIT]{Colors.END} File successfully edited")
+        self.logger.info(f"  Replacements made: {expected_replacements}")
+        self.logger.info(f"  Context snippet:\n{snippet}")
 
         self.history.append(f"Edited file: {file_path} ({expected_replacements} replacements)")
 
@@ -595,24 +598,24 @@ class ImplementationAgent:
 
     def write_file(self, file_path: str, content: str):
         """Write content to a new file"""
-        print(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Writing new file: {file_path}")
-        print(f"  Content length: {len(content)} characters, {len(content.splitlines())} lines")
+        self.logger.info(f"{Colors.BRIGHT_YELLOW}[FILE OP]{Colors.END} Writing new file: {file_path}")
+        self.logger.info(f"  Content length: {len(content)} characters, {len(content.splitlines())} lines")
         full_path = os.path.join(self.project_path, file_path) if not os.path.isabs(file_path) else file_path
 
         try:
             dir_path = os.path.dirname(full_path)
             if not os.path.exists(dir_path):
-                print(f"  Creating directory: {dir_path}")
+                self.logger.info(f"  Creating directory: {dir_path}")
                 os.makedirs(dir_path, exist_ok=True)
 
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(content)
-            print(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} Successfully wrote file")
+            self.logger.info(f"{Colors.BRIGHT_GREEN}[FILE OP]{Colors.END} Successfully wrote file")
             self.history.append(f"Created file: {file_path}")
             return True
         except Exception as e:
             error_msg = f"Error writing file {file_path}: {str(e)}"
-            print(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
+            self.logger.info(f"{Colors.BRIGHT_RED}[FILE OP ERROR]{Colors.END} {error_msg}")
             self.history.append(error_msg)
             return False
 
@@ -626,23 +629,23 @@ class ImplementationAgent:
             pass
         else:
             # Ask for user confirmation only when DEBUG=1
-            print(f"{Colors.BRIGHT_YELLOW}[CONFIRMATION]{Colors.END} Do you want to execute this tool call?")
-            print(f"  Tool: {tool_name}")
-            print(f"  Parameters: {tool_input}")
+            self.logger.info(f"{Colors.BRIGHT_YELLOW}[CONFIRMATION]{Colors.END} Do you want to execute this tool call?")
+            self.logger.info(f"  Tool: {tool_name}")
+            self.logger.info(f"  Parameters: {tool_input}")
 
             while True:
                 response = input(f"{Colors.BRIGHT_CYAN}[INPUT]{Colors.END} Proceed? (y/n/a): ").lower().strip()
                 if response in ['y', 'yes']:
                     break
                 elif response in ['a', 'always']:
-                    print(f"{Colors.BRIGHT_GREEN}[ALWAYS YES]{Colors.END} Enabling always yes mode...")
+                    self.logger.info(f"{Colors.BRIGHT_GREEN}[ALWAYS YES]{Colors.END} Enabling always yes mode...")
                     self.always_yes = True
                     break
                 elif response in ['n', 'no']:
-                    print(f"{Colors.BRIGHT_RED}[EXIT]{Colors.END} Exiting program...")
+                    self.logger.info(f"{Colors.BRIGHT_RED}[EXIT]{Colors.END} Exiting program...")
                     exit(0)
                 else:
-                    print(f"{Colors.BRIGHT_RED}[INVALID]{Colors.END} Please enter 'y' (yes), 'n' (no/exit), or 'a' (always yes)")
+                    self.logger.info(f"{Colors.BRIGHT_RED}[INVALID]{Colors.END} Please enter 'y' (yes), 'n' (no/exit), or 'a' (always yes)")
 
         try:
             if tool_name == "list_files":
@@ -711,7 +714,7 @@ class ImplementationAgent:
                     if attempt < max_retries - 1:  # Don't sleep on last attempt
                         # Calculate delay with exponential backoff and jitter
                         delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
-                        print(f"{Colors.BRIGHT_YELLOW}[RETRY]{Colors.END} API overloaded (attempt {attempt + 1}/{max_retries}), retrying in {delay:.2f}s...")
+                        self.logger.info(f"{Colors.BRIGHT_YELLOW}[RETRY]{Colors.END} API overloaded (attempt {attempt + 1}/{max_retries}), retrying in {delay:.2f}s...")
                         time.sleep(delay)
                         continue
                 # Re-raise non-retryable errors or if we've exhausted retries
@@ -750,13 +753,13 @@ class ImplementationAgent:
 
         # Continue conversation until no more tool calls
         while True:
-            print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with {len(messages)} messages:")
+            self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with {len(messages)} messages:")
             for i, message in enumerate(messages):
                 content_preview = self.truncate_for_debug(str(message['content']))
-                print(f"  Message {i+1} ({message['role']}): {content_preview}")
-            print()
+                self.logger.info(f"  Message {i+1} ({message['role']}): {content_preview}")
+            self.logger.info('')
 
-            print(f"{Colors.BRIGHT_MAGENTA}[AI STREAMING]{Colors.END} Starting streaming response...")
+            self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI STREAMING]{Colors.END} Starting streaming response...")
 
             # Track API call duration
             api_start_time = time.time()
@@ -773,13 +776,13 @@ class ImplementationAgent:
                     tools=self.get_anthropic_tools_schema(),
                     messages=messages
                 ) as stream:
-                    print(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
+                    self.logger.info(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
 
                     # Stream text as it arrives
                     for text in stream.text_stream:
-                        print(f"{Colors.GREY}{text}{Colors.END}", end="", flush=True)
+                        self.logger.info(f"{Colors.GREY}{text}{Colors.END}")
 
-                    print()  # New line after streaming text
+                    self.logger.info('')  # New line after streaming text
 
                     # Get the final message with all content blocks
                     return stream.get_final_message()
@@ -790,9 +793,9 @@ class ImplementationAgent:
             api_call_duration = api_end_time - api_start_time
             total_api_duration += api_call_duration
 
-            print(f"{Colors.BRIGHT_MAGENTA}[AI RESPONSE]{Colors.END} Streaming completed")
-            print(f"  Output tokens: {final_message.usage.output_tokens}")
-            print(f"  API call duration: {api_call_duration:.2f}s")
+            self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI RESPONSE]{Colors.END} Streaming completed")
+            self.logger.info(f"  Output tokens: {final_message.usage.output_tokens}")
+            self.logger.info(f"  API call duration: {api_call_duration:.2f}s")
             output_tokens += final_message.usage.output_tokens
 
             # Add assistant message to conversation  
@@ -805,10 +808,10 @@ class ImplementationAgent:
             tool_calls = [block for block in final_message.content if hasattr(block, 'type') and block.type == "tool_use"]
 
             if not tool_calls:
-                print(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more tool calls, conversation complete")
+                self.logger.info(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more tool calls, conversation complete")
                 break
 
-            print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(tool_calls)} tool calls")
+            self.logger.info(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(tool_calls)} tool calls")
 
             # Execute tool calls and collect results
             tool_results = []
@@ -826,9 +829,9 @@ class ImplementationAgent:
                 # Only show errors or non-read operations in detail
                 if not result['success'] or tool_call.name != 'read_file':
                     result_preview = self.truncate_for_debug(json.dumps(result))
-                    print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
+                    self.logger.info(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
                     if not result['success']:
-                        print(f"  Result: {result_preview}")
+                        self.logger.info(f"  Result: {result_preview}")
 
             # Add tool results to conversation
             messages.append({
@@ -870,7 +873,7 @@ class ImplementationAgent:
 
         # Continue conversation until no more tool calls
         while True:
-            print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Gemini with {len(gemini_contents)} messages")
+            self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Gemini with {len(gemini_contents)} messages")
 
             try:
                 # Track API call duration
@@ -888,8 +891,8 @@ class ImplementationAgent:
                 api_call_duration = api_end_time - api_start_time
                 total_api_duration += api_call_duration
 
-                print(f"{Colors.BRIGHT_GREEN}[AI RESPONSE]{Colors.END} Gemini response received")
-                print(f"  API call duration: {api_call_duration:.2f}s")
+                self.logger.info(f"{Colors.BRIGHT_GREEN}[AI RESPONSE]{Colors.END} Gemini response received")
+                self.logger.info(f"  API call duration: {api_call_duration:.2f}s")
 
                 # Add assistant response to conversation
                 if response.candidates and response.candidates[0].content:
@@ -903,7 +906,7 @@ class ImplementationAgent:
                     response.candidates[0].content and 
                     response.candidates[0].content.parts):
                     for part in response.candidates[0].content.parts:
-                        print(f"Part: {part}")
+                        self.logger.info(f"Part: {part}")
                         if hasattr(part, 'function_call') and part.function_call:
                             function_calls.append(part)
                         elif hasattr(part, 'text') and part.text:
@@ -912,13 +915,13 @@ class ImplementationAgent:
                 # Print any text content
                 if text_parts:
                     combined_text = ''.join(text_parts)
-                    print(f"{Colors.GREY}{combined_text}{Colors.END}")
+                    self.logger.info(f"{Colors.GREY}{combined_text}{Colors.END}")
 
                 if not function_calls:
-                    print(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more function calls, conversation complete")
+                    self.logger.info(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more function calls, conversation complete")
                     break
 
-                print(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(function_calls)} function calls")
+                self.logger.info(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(function_calls)} function calls")
 
                 # Execute function calls and collect results
                 function_response_parts = []
@@ -940,16 +943,16 @@ class ImplementationAgent:
                     # Only show errors or non-read operations in detail
                     if not result['success'] or function_call.name != 'read_file':
                         result_preview = self.truncate_for_debug(json.dumps(result))
-                        print(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {function_call.name}: {'Success' if result['success'] else 'Error'}")
+                        self.logger.info(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {function_call.name}: {'Success' if result['success'] else 'Error'}")
                         if not result['success']:
-                            print(f"  Result: {result_preview}")
+                            self.logger.info(f"  Result: {result_preview}")
 
                 # Add function responses to conversation
                 if function_response_parts:
                     gemini_contents.append(gemini_types.Content(role='tool', parts=function_response_parts))
 
             except Exception as e:
-                print(f"{Colors.BRIGHT_RED}[ERROR]{Colors.END} Gemini API error: {e}")
+                self.logger.info(f"{Colors.BRIGHT_RED}[ERROR]{Colors.END} Gemini API error: {e}")
                 break
 
         return {
@@ -960,20 +963,20 @@ class ImplementationAgent:
 
     def implement_step(self, step_text: str):
         """Implement a step by processing its components (goals, knowledge, plans, screens, etc.)"""
-        print(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Starting step implementation")
-        print(f"  Step text length: {len(step_text)} characters")
-        print(f"  Step preview: {step_text[:100]}...")
+        self.logger.info(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Starting step implementation")
+        self.logger.info(f"  Step text length: {len(step_text)} characters")
+        self.logger.info(f"  Step preview: {step_text[:100]}...")
 
         # Read current models and views for context
-        print(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Gathering context files")
+        self.logger.info(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Gathering context files")
         models_content = self.read_file("web/models.py")
         views_content = self.read_file("web/views.py")
         urls_content = self.read_file("web/urls.py")
 
         # Get directory structure
-        print(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Generating directory tree")
+        self.logger.info(f"{Colors.BRIGHT_CYAN}[AGENT]{Colors.END} Generating directory tree")
         directory_tree = self.get_directory_tree(self.project_path)
-        print(f"  Directory tree length: {len(directory_tree)} characters")
+        self.logger.info(f"  Directory tree length: {len(directory_tree)} characters")
 
         # Create prompt for implementation
         prompt = f"""
@@ -992,21 +995,21 @@ class ImplementationAgent:
 <step>{step_text}</step>
 """
 
-        print(f"{Colors.BRIGHT_CYAN}[PROMPT]{Colors.END} Generated prompt:")
-        print(self.truncate_for_debug(prompt))
-        print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with tools")
+        self.logger.info(f"{Colors.BRIGHT_CYAN}[PROMPT]{Colors.END} Generated prompt:")
+        self.logger.info(self.truncate_for_debug(prompt))
+        self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with tools")
 
         # Initialize token tracking
         messages = [{"role": "user", "content": prompt}]
         input_tokens = len(prompt.split()) + len(self._system_prompt.split()) + len(self._tools_prompt.split())
-        print(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Estimated input tokens: {input_tokens}")
+        self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Estimated input tokens: {input_tokens}")
 
         # Run the streaming conversation
         result = self.run_streaming_conversation(self._system_prompt, messages)
 
-        print(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Step implementation completed")
-        print(f"  Total input tokens: {input_tokens}")
-        print(f"  Total output tokens: {result['total_output_tokens']}")
-        print(f"  Total API duration: {result.get('total_api_duration', 0):.2f}s")
+        self.logger.info(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Step implementation completed")
+        self.logger.info(f"  Total input tokens: {input_tokens}")
+        self.logger.info(f"  Total output tokens: {result['total_output_tokens']}")
+        self.logger.info(f"  Total API duration: {result.get('total_api_duration', 0):.2f}s")
 
         return result

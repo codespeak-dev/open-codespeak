@@ -8,12 +8,17 @@ import sys
 import os
 import re
 import argparse
+import logging
 from pathlib import Path
+
+# Set up logging for standalone script
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger(__name__)
 
 try:
     import anthropic
 except ImportError:
-    print("Error: anthropic library not installed. Run: pip install anthropic")
+    logger.info("Error: anthropic library not installed. Run: pip install anthropic")
     sys.exit(1)
 
 # ANSI color codes for terminal output
@@ -45,18 +50,18 @@ def read_file(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
-        print(f"Error: File '{file_path}' not found")
+        logger.info(f"Error: File '{file_path}' not found")
         sys.exit(1)
     except Exception as e:
-        print(f"Error reading file: {e}")
+        logger.info(f"Error reading file: {e}")
         sys.exit(1)
 
 def get_claude_response(spec_content):
     """Send specification to Claude for highlighting."""
     api_key = os.getenv('ANTHROPIC_API_KEY')
     if not api_key:
-        print("Error: ANTHROPIC_API_KEY environment variable not set")
-        print("Get your API key from: https://console.anthropic.com/")
+        logger.info("Error: ANTHROPIC_API_KEY environment variable not set")
+        logger.info("Get your API key from: https://console.anthropic.com/")
         sys.exit(1)
 
     client = anthropic.Anthropic(api_key=api_key)
@@ -84,7 +89,7 @@ Return ONLY the highlighted specification text with the tags, no explanations or
         )
         return response.content[0].text
     except Exception as e:
-        print(f"Error calling Claude API: {e}")
+        logger.info(f"Error calling Claude API: {e}")
         sys.exit(1)
 
 def apply_terminal_colors(text, color_mode='fg'):
@@ -157,14 +162,14 @@ def print_legend(color_mode='fg'):
     colors = FOREGROUND_COLORS if color_mode == 'fg' else BACKGROUND_COLORS
     mode_name = "FOREGROUND" if color_mode == 'fg' else "BACKGROUND"
 
-    print("\n" + "="*60)
-    print(f"DATA FLOW DIRECTION HIGHLIGHTING LEGEND ({mode_name} MODE)")
-    print("="*60)
-    print(f"{colors['green']}Input/Creation{colors['reset']} - Users create or input data")
-    print(f"{colors['blue']}Output/Display{colors['reset']} - Information presentation") 
-    print(f"{colors['orange']}Interaction/Action{colors['reset']} - User decisions & actions")
-    print(f"{colors['purple']}System Processing{colors['reset']} - Behind-the-scenes operations")
-    print("="*60 + "\n")
+    logger.info("\n" + "="*60)
+    logger.info(f"DATA FLOW DIRECTION HIGHLIGHTING LEGEND ({mode_name} MODE)")
+    logger.info("="*60)
+    logger.info(f"{colors['green']}Input/Creation{colors['reset']} - Users create or input data")
+    logger.info(f"{colors['blue']}Output/Display{colors['reset']} - Information presentation") 
+    logger.info(f"{colors['orange']}Interaction/Action{colors['reset']} - User decisions & actions")
+    logger.info(f"{colors['purple']}System Processing{colors['reset']} - Behind-the-scenes operations")
+    logger.info("="*60 + "\n")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -186,28 +191,28 @@ Examples:
 
     # Validate file exists
     if not Path(args.file_path).exists():
-        print(f"Error: File '{args.file_path}' does not exist")
+        logger.info(f"Error: File '{args.file_path}' does not exist")
         sys.exit(1)
 
-    print(f"Reading specification from: {args.file_path}")
-    print(f"Using color mode: {'foreground' if args.mode == 'fg' else 'background'}")
+    logger.info(f"Reading specification from: {args.file_path}")
+    logger.info(f"Using color mode: {'foreground' if args.mode == 'fg' else 'background'}")
     spec_content = read_file(args.file_path)
 
-    print("Sending to Claude for highlighting...")
+    logger.info("Sending to Claude for highlighting...")
     highlighted_spec = get_claude_response(spec_content)
 
-    print("Applying terminal colors...")
+    logger.info("Applying terminal colors...")
     colored_output = apply_terminal_colors(highlighted_spec, args.mode)
 
     # Print legend
     print_legend(args.mode)
 
     # Print the highlighted specification
-    print(colored_output)
+    logger.info(colored_output)
 
     # Reset colors at the end
     colors = FOREGROUND_COLORS if args.mode == 'fg' else BACKGROUND_COLORS
-    print(colors['reset'])
+    logger.info(colors['reset'])
 
 if __name__ == "__main__":
     main()

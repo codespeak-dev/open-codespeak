@@ -5,6 +5,7 @@ import datetime
 import difflib
 import json
 import os
+import logging
 
 from pathlib import Path
 from typing import Any
@@ -83,7 +84,8 @@ class Phase:
     dry_run_aware = False # Allow running in dry run mode
 
     def __init__(self):
-        pass
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
 
     @abstractmethod
     def run(self, state: State, context: Context) -> dict:
@@ -133,6 +135,8 @@ class PhaseManager:
             context: Context,
             initial_state: dict | None = None, 
         ):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
         self.phases = phases
         self.state_schema = self.calculate_schema(phases)
 
@@ -145,10 +149,10 @@ class PhaseManager:
         )
 
         if os.path.exists(state_file):
-            print(f"Loading state from {state_file}")
+            self.logger.info(f"Loading state from {state_file}")
             self.load_state()
-            print(f"  * Last executed phase: {self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)}")
-            print(f"  * Branched from commit: {self.current_state.get(self.BRANCHED_FROM)}")
+            self.logger.info(f"  * Last executed phase: {self.current_state.internal.get(self.LAST_SUCCESSFUL_PHASE)}")
+            self.logger.info(f"  * Branched from commit: {self.current_state.get(self.BRANCHED_FROM)}")
         else:
             self.current_state[self.BRANCHED_FROM] = self.context.head_hash
 
@@ -182,9 +186,9 @@ class PhaseManager:
 
         phases_to_run = self.prepare_incremental_phases_run()
         if self.context.incremental_mode.type == IncrementalMode.CLEAN:
-            print(f"Running clean compilation")
+            self.logger.info(f"Running clean compilation")
         else:
-            print(f"Running in incremental mode:{self.context.incremental_mode}")
+            self.logger.info(f"Running in incremental mode:{self.context.incremental_mode}")
             phase_explanation = ""
             if (self.context.incremental_mode.type == IncrementalMode.RESTART_FROM_LAST_FAILED):
                 phase_explanation = f" (inferred as the next phase after the last successful phase)"
@@ -192,13 +196,13 @@ class PhaseManager:
                 phase_explanation = f" (passed via --start)"
             if (self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND):
                 phase_explanation = f" (starting new compilation round)"
-            print(f"    Starting from the phase '{phases_to_run[0].id}'{phase_explanation}")
+            self.logger.info(f"    Starting from the phase '{phases_to_run[0].id}'{phase_explanation}")
 
             if self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND:
-                print(f"    Spec diff: {self.current_state.get('spec_diff')}")
+                self.logger.info(f"    Spec diff: {self.current_state.get('spec_diff')}")
 
         if self.context.incremental_mode.type == IncrementalMode.NEXT_ROUND and self.current_state.get("spec_diff") == "":
-            print(f"{Colors.BRIGHT_GREEN}Nothing to do: no spec diff found{Colors.END}")
+            self.logger.info(f"{Colors.BRIGHT_GREEN}Nothing to do: no spec diff found{Colors.END}")
             # todo(dsavvinov): improve this
             exit(0)
 
@@ -225,14 +229,14 @@ class PhaseManager:
                 
                 dry_run_suffix_if_any = " (dry run)" if self.context.dry_run else ""
 
-                print(f"{Colors.BRIGHT_YELLOW}Running phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
+                self.logger.info(f"{Colors.BRIGHT_YELLOW}Running phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
                 
                 if self.context.dry_run and not self.current_phase.dry_run_aware:
                     delta = { f"phase_{self.current_phase.id}": "dry-run" }
                 else:
                     delta = phase.run(self.current_state, self.context)
 
-                print(f"{Colors.BRIGHT_GREEN}Finished phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
+                self.logger.info(f"{Colors.BRIGHT_GREEN}Finished phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
 
                 if not isinstance(delta, dict):
                     raise StateMachineError(f"Phase {self.current_phase.id} returned a non-dict object")
@@ -243,7 +247,7 @@ class PhaseManager:
                     **append_to_history()
                 })
             except BaseException as e:
-                print(f"Error running phase {self.current_phase.id}: {str(e) or type(e).__name__}")
+                self.logger.info(f"Error running phase {self.current_phase.id}: {str(e) or type(e).__name__}")
                 self.save_state(self.current_state._clone_internal({
                     **standard_fields,
                     **append_to_history({"error": f"{type(e).__name__}: {str(e)}"})

@@ -1,11 +1,14 @@
 import os
 import subprocess
 import time
+import logging
 
 class GitHelper:
     """A helper class to interact with a Git repository."""
 
     def __init__(self, repo_path: str):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
         if repo_path is None:
             raise ValueError("repo_path must not be None")
         self.repo_path = repo_path
@@ -32,7 +35,7 @@ class GitHelper:
         """
         add_returncode, _, add_stderr = self._run_command(['git', 'add', '.'])
         if add_returncode != 0:
-            print(f"Error staging changes: {add_stderr}")
+            self.logger.info(f"Error staging changes: {add_stderr}")
             return
 
         commit_returncode, _, commit_stderr = self._run_command(['git', 'commit', '-m', title, '-m', description, '--author="Codespeak <gen@codespeak.dev>"'])
@@ -56,7 +59,7 @@ class GitHelper:
         """
         returncode, stdout, stderr = self._run_command(['git', 'rev-parse', 'HEAD'])
         if returncode != 0:
-            print(f"Error getting HEAD hash: {stderr}")
+            self.logger.info(f"Error getting HEAD hash: {stderr}")
             return None
         return stdout.strip()
     
@@ -66,7 +69,7 @@ class GitHelper:
         """
         returncode, stdout, stderr = self._run_command(['git', 'log', '-1', '--format=%an'])
         if returncode != 0:
-            print(f"Error getting HEAD author: {stderr}")
+            self.logger.info(f"Error getting HEAD author: {stderr}")
             return None
         return stdout.strip()
     
@@ -80,18 +83,18 @@ class GitHelper:
             ['git', 'log', '--grep', message_substring, '--format=%H']
         )
         if returncode != 0:
-            print(f"Error running git log: {stderr}")
+            self.logger.info(f"Error running git log: {stderr}")
             return None
 
         lines = stdout.splitlines()
         if len(lines) == 0:
-            print(f"No commit found for message substring '{message_substring}'")
+            self.logger.info(f"No commit found for message substring '{message_substring}'")
             return None
         elif len(lines) > 1:
-            print(f"    Multiple commits found for message substring '{message_substring}':")
+            self.logger.info(f"    Multiple commits found for message substring '{message_substring}':")
             for line in lines:
-                print(f"        {line.strip()}")
-            print(f"    Taking the most recent one: {lines[0].strip()}")
+                self.logger.info(f"        {line.strip()}")
+            self.logger.info(f"    Taking the most recent one: {lines[0].strip()}")
             return lines[0].strip()
         else:
             return lines[0].strip()
@@ -140,7 +143,7 @@ class GitHelper:
         returncode, stdout, stderr = self._run_command(command)
         
         if returncode != 0:
-            print(f"Error getting diff for {file_path}: {stderr}")
+            self.logger.info(f"Error getting diff for {file_path}: {stderr}")
             return ""
             
         return stdout
@@ -162,7 +165,7 @@ class GitHelper:
         returncode, stdout, stderr = self._run_command(command)
         
         if returncode != 0:
-            print(f"Error getting file content for {file_path} at {revision_sha}: {stderr}")
+            self.logger.info(f"Error getting file content for {file_path} at {revision_sha}: {stderr}")
             return ""
             
         return stdout

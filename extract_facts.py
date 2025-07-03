@@ -1,3 +1,4 @@
+import logging
 from colors import Colors
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
@@ -19,7 +20,7 @@ def extract_facts(stories: str, spec: str, context: Context) -> str:
 
         input_tokens[0] = len(content.split()) + len(SYSTEM_PROMPT.split())
 
-        print(content)
+        logging.getLogger(ExtractFacts.__class__.__qualname__).info(content)
 
         response_text = ""
         with context.anthropic_client.stream(
@@ -41,6 +42,10 @@ def extract_facts(stories: str, spec: str, context: Context) -> str:
         return response_text
 
 class ExtractFacts(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
+
     def run(self, state: State, context: Context) -> dict:
         stories = state.get("stories", "")
         spec = state["spec"]
@@ -50,8 +55,8 @@ class ExtractFacts(Phase):
         facts = extract_facts(stories, spec, context)
 
         if verbose:
-            print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Extracted Facts:{Colors.END}")
-            print(facts)
+            self.logger.info(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Extracted Facts:{Colors.END}")
+            self.logger.info(facts)
 
         return {
             "facts": facts

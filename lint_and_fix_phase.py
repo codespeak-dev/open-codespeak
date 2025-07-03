@@ -1,4 +1,5 @@
 import os
+import logging
 from io import StringIO
 
 from pylint import run_pylint
@@ -12,6 +13,9 @@ from implementation_agent import TOOLS_DEFINITIONS, ImplementationAgent
 
 
 class LintAndFix(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
     description = "Run pylint on all Python files and fix issues"
 
     _SYSTEM_PROMPT = """
@@ -32,7 +36,7 @@ class LintAndFix(Phase):
         try:
             Run(['--errors-only', '--persistent=no', '--clear-cache-post-run=True'] + files_to_check, reporter=reporter, exit = False)
         except Exception as e:
-            print(f"    {Colors.BRIGHT_RED}❌ Error running pylint: {str(e)}{Colors.END}")
+            self.logger.info(f"    {Colors.BRIGHT_RED}❌ Error running pylint: {str(e)}{Colors.END}")
             exit(1)
         
         output.seek(0)
@@ -53,16 +57,16 @@ class LintAndFix(Phase):
                     python_files.append(os.path.join(root, file))
         
         if not python_files:
-            print(f"{Colors.BRIGHT_YELLOW}No Python files found to lint{Colors.END}")
+            self.logger.info(f"{Colors.BRIGHT_YELLOW}No Python files found to lint{Colors.END}")
             return {}
         
         # Initial run of pylint to get errors
         errors = self.run_pylint(python_files)
         if len(errors) == 0:
-            print(f"    {Colors.BRIGHT_GREEN}✅ No Python lint errors found{Colors.END}")
+            self.logger.info(f"    {Colors.BRIGHT_GREEN}✅ No Python lint errors found{Colors.END}")
             return {}
         else:
-            print(f"    {Colors.BRIGHT_RED}❌ {len(errors)} Python lint errors found, fixing with agent...{Colors.END}")
+            self.logger.info(f"    {Colors.BRIGHT_RED}❌ {len(errors)} Python lint errors found, fixing with agent...{Colors.END}")
 
         agent = ImplementationAgent(
             project_path=state["project_path"],
@@ -92,7 +96,7 @@ class LintAndFix(Phase):
                 if 'path' in error:
                     error['path'] = os.path.relpath(error['path'], state["project_path"])
 
-            print(f"    Fixing {len(file_errors)} errors in {file_path}...")
+            self.logger.info(f"    Fixing {len(file_errors)} errors in {file_path}...")
             for i in range(self._MAX_FIX_ATTEMPTS):
                 result = agent.run_streaming_conversation(self._SYSTEM_PROMPT, [{"role": "user", "content": f"""
                 Fix the following pylint errors:
@@ -106,13 +110,13 @@ class LintAndFix(Phase):
 
                 current_errors = self.run_pylint([file_path])
                 if len(current_errors) != 0:
-                    print(f"    Still {len(current_errors)} errors left in {file_path}, iterating again...")
+                    self.logger.info(f"    Still {len(current_errors)} errors left in {file_path}, iterating again...")
                 else:
                     break
             if (len(current_errors) > 0):
-                print(f"    {Colors.BRIGHT_RED}❌ Failed to fix all errors in {file_path}{Colors.END}")
+                self.logger.info(f"    {Colors.BRIGHT_RED}❌ Failed to fix all errors in {file_path}{Colors.END}")
                 exit(1)
             else:
-                print(f"    All errors are fixed in {file_path}")
+                self.logger.info(f"    All errors are fixed in {file_path}")
 
         return {}

@@ -2,6 +2,7 @@ import argparse
 import os
 import dotenv
 import sys
+import logging
 from pathlib import Path
 from colors import Colors
 from data_serializer import text_file
@@ -26,12 +27,16 @@ from git_helper import GitHelper
 from incremental_mode import IncrementalMode
 from ensure_server_starts import EnsureServerStarts
 from lint_and_fix_phase import LintAndFix
+from utils.logging_util import LoggingUtil
 
 dotenv.load_dotenv()
 
 def main():
+    LoggingUtil.initialize_logger("./codespeak.log")
+
+    logger = logging.getLogger("main")
     # Log the full invocation command line
-    print(f"{Colors.BRIGHT_YELLOW}Invocation:{Colors.END} {' '.join([os.path.basename(sys.argv[0])] + sys.argv[1:])}")
+    logger.info(f"{Colors.BRIGHT_YELLOW}Invocation:{Colors.END} {' '.join([os.path.basename(sys.argv[0])] + sys.argv[1:])}")
 
     parser = argparse.ArgumentParser(description="Generate Django project from file prompt via Claude.")
     parser.prog = 'codespeak'
@@ -51,7 +56,7 @@ def main():
     args = parser.parse_args()
 
     if args.incremental:
-        print(f"Running in incremental mode from {args.incremental}")
+        logger.info(f"Running in incremental mode from {args.incremental}")
         project_path = args.incremental
         init = Init({
             "project_path": project_path,
@@ -66,12 +71,12 @@ def main():
         elif args.next_round:
             incremental_mode = IncrementalMode.next_round()
         else:
-            print(f"{Colors.BRIGHT_RED}Error: --incremental is provided, but no incremental mode is specified. Please specify one of --start, --restart-last-failed, or --next-round{Colors.END}")
+            logger.info(f"{Colors.BRIGHT_RED}Error: --incremental is provided, but no incremental mode is specified. Please specify one of --start, --restart-last-failed, or --next-round{Colors.END}")
             parser.print_help()
             return
     else:
         if not args.filepath:
-            print(f"{Colors.BRIGHT_RED}Error: filepath is required when not in incremental mode{Colors.END}")
+            logger.info(f"{Colors.BRIGHT_RED}Error: filepath is required when not in incremental mode{Colors.END}")
             parser.print_help()
             return
 
@@ -94,11 +99,14 @@ def main():
 
         incremental_mode = IncrementalMode.clean()
 
+    # from now, logging will be made in the project folder
+    LoggingUtil.initialize_logger(f"{project_path}/codespeak.log")
+
     git_helper = GitHelper(project_path)
 
     head_hash = git_helper.get_head_hash()
     if not head_hash:
-        print(f"{Colors.BRIGHT_RED}Error: failed to get HEAD hash{Colors.END}")
+        logger.info(f"{Colors.BRIGHT_RED}Error: failed to get HEAD hash{Colors.END}")
         return
 
 
@@ -139,12 +147,13 @@ def main():
     project_name = state["project_name"]
     project_path = state["project_path"]
 
-    print(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
-    print(f"Start Django server via: python {project_path}/manage.py runserver")
+    logger.info(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
+    logger.info(f"Start Django server via: python {project_path}/manage.py runserver")
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nInterrupted by user")
+        logger = logging.getLogger("main")
+        logger.info("\nInterrupted by user")
         sys.exit(1)

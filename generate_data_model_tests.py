@@ -1,4 +1,5 @@
 import os
+import logging
 from colors import Colors
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
@@ -30,27 +31,6 @@ def read_models_file(project_path: str) -> str:
         return f.read()
 
 
-def generate_data_model_tests(models_content: str, context: Context) -> str:
-    """Use Claude to generate data model tests based on models.py"""
-
-    with with_streaming_step("Generating data model tests with Claude...") as (input_tokens, output_tokens):
-        response_text = ""
-        # Count input tokens from system prompt and models content
-        input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + models_content).split())
-
-        with context.anthropic_client.stream(
-            model="claude-3-7-sonnet-latest",
-            max_tokens=8192,
-            temperature=0,
-            system=DATA_MODEL_TESTS_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": models_content}]
-        ) as stream:
-            for text in stream.text_stream:
-                response_text += text
-                output_tokens[0] += len(text.split())
-
-    print(f"Response text: {response_text}")
-    return response_text.strip()
 
 
 def save_test_to_project(test_code: str, project_path: str) -> str:
@@ -64,22 +44,48 @@ def save_test_to_project(test_code: str, project_path: str) -> str:
 
 
 class GenerateDataModelTests(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
     description = "Generates data model tests for the Django project"
 
     def run(self, state: State, context: Context) -> dict:
         # Skip if entities are empty
         entities = state.get("entities", [])
         if not entities:
-            print(f"{Colors.BRIGHT_YELLOW}Skipping integration test generation - no entities found{Colors.END}")
+            self.logger.info(f"{Colors.BRIGHT_YELLOW}Skipping integration test generation - no entities found{Colors.END}")
             return {}
 
         project_path = state["project_path"]
 
         models_content = read_models_file(project_path)
 
-        test_code = generate_data_model_tests(models_content, context)
+        test_code = self.generate_data_model_tests(models_content, context)
         test_file_path = save_test_to_project(test_code, project_path)
 
         return {
             "data_model_test_path": test_file_path
         }
+
+    def generate_data_model_tests(self, models_content: str, context: Context) -> str:
+        """Use Claude to generate data model tests based on models.py"""
+
+        with with_streaming_step("Generating data model tests with Claude...") as (input_tokens, output_tokens):
+            response_text = ""
+            # Count input tokens from system prompt and models content
+            input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + models_content).split())
+
+            with context.anthropic_client.stream(
+                    model="claude-3-7-sonnet-latest",
+                    max_tokens=8192,
+                    temperature=0,
+                    system=DATA_MODEL_TESTS_SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": models_content}]
+            ) as stream:
+                for text in stream.text_stream:
+                    response_text += text
+                    output_tokens[0] += len(text.split())
+
+        self.logger.info(f"Response text: {response_text}")
+        return response_text.strip()
+

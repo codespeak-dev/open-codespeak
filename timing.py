@@ -1,5 +1,6 @@
 import functools
 import time
+import logging
 from contextlib import contextmanager
 
 @contextmanager
@@ -10,7 +11,8 @@ def timer_cm(name):
     print_delta(name, start, end)
 
 def print_delta(name, start, end):
-    print(f"\n  * {name}: {(end - start) * 1000:.2f} ms")
+    logger = logging.getLogger("timing")
+    logger.info(f"\n  * {name}: {(end - start) * 1000:.2f} ms")
 
 def timer_dec(func):
     @functools.wraps(func)

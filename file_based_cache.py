@@ -179,12 +179,14 @@ class FileBasedCache:
 
 
 if __name__ == "__main__":
+    import logging
+    logger = logging.getLogger("file_based_cache")
     cache = FileBasedCache(Path("test_outputs/.test_llm_cache"))
     cache.set(cache.key("test"), "test")
     cache.set(cache.key({"a": "b"}), ["test", "test2"])
     cache.set(cache.key({"a": "b", 2: 1}), "test111")
     cache.set(cache.key("key"), ["value"])
-    print(cache.get(cache.key("test")))
-    print(cache.get(cache.key({"a": "b"})))
-    print(cache.get(cache.key({"a": "b", 2: 1})))
-    print(cache.get(cache.key("key")))
+    logger.info(cache.get(cache.key("test")))
+    logger.info(cache.get(cache.key({"a": "b"})))
+    logger.info(cache.get(cache.key({"a": "b", 2: 1})))
+    logger.info(cache.get(cache.key("key")))

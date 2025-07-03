@@ -1,3 +1,4 @@
+import logging
 from colors import Colors
 from data_serializer import json_file
 from phase_manager import State, Phase, Context
@@ -141,17 +142,20 @@ def extract_models_and_fields(spec: str, context: Context, existing_entities=Non
 
         return entities_data
 
-def display_entities(entities: list[Entity]):
+def display_entities(entities: list[Entity], logger):
     """Display entities in a formatted way"""
-    print("Entities extracted:")
+    logger.info("Entities extracted:")
     for entity in entities:
-        print(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
+        logger.info(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
         for rel in entity.relationships:
-            print(f"      {Colors.BRIGHT_MAGENTA}{rel.name}{Colors.END}: {rel.type} -> {Colors.BRIGHT_GREEN}{rel.related_to}{Colors.END}")
+            logger.info(f"      {Colors.BRIGHT_MAGENTA}{rel.name}{Colors.END}: {rel.type} -> {Colors.BRIGHT_GREEN}{rel.related_to}{Colors.END}")
         for field in entity.fields:
-            print(f"      {Colors.BRIGHT_YELLOW}{field.name}{Colors.END}: {field.type}")
+            logger.info(f"      {Colors.BRIGHT_YELLOW}{field.name}{Colors.END}: {field.type}")
 
 class ExtractEntities(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
     description = "Extract data entities from the specification"
 
     def run(self, state: State, context: Context) -> dict:
@@ -162,9 +166,9 @@ class ExtractEntities(Phase):
         entities_data = extract_models_and_fields(spec, context, existing_entities=existing_entities, spec_diff=spec_diff)
 
         if len(entities_data) > 0:
-            display_entities(to_entities(entities_data))
+            display_entities(to_entities(entities_data), self.logger)
         else:
-            print("No entities extracted")
+            self.logger.info("No entities extracted")
 
         return {
             "entities": entities_data

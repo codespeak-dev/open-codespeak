@@ -2,6 +2,7 @@ import os
 import re
 import json
 import llm_cache
+import logging
 from typing import cast
 from anthropic.types import ToolParam
 from jinja2 import Environment, FileSystemLoader
@@ -90,6 +91,9 @@ def generate_models_with_llm(project_path: str, old_models: str, old_entities: l
             raise ValueError(f"Unknown tool: {tool_call.name}")
 
 class GenerateModels(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
     description = "Generate Django models from extracted entities"
     
     def run(self, state: State, context: Context) -> dict:
@@ -114,7 +118,7 @@ class GenerateModels(Phase):
         # else:
         project_name = state["project_name"]
         entities: list[Entity] = state["entities"]
-        print(f"Generating Django models in {project_path}")
+        self.logger.info(f"Generating Django models in {project_path}")
 
         generate_models_from_template(project_path, project_name, to_entities(entities), "web")
         return {}

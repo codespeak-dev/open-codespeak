@@ -1,6 +1,7 @@
 from colors import Colors
 from typing import Optional
 from contextlib import contextmanager
+import logging
 
 class TreePrinter:
     """Utility for printing hierarchical tree-like output"""
@@ -8,6 +9,7 @@ class TreePrinter:
     def __init__(self):
         self.indent_level = 0
         self.active_sections: list[str] = []
+        self.logger = logging.getLogger(__class__.__qualname__)
     
     def _get_indent(self, level: int = 0) -> str:
         """Get indentation string for the current level"""
@@ -25,14 +27,14 @@ class TreePrinter:
         """Start a new section with a title"""
         indent = self._get_indent()
         colored_title = f"{color}{title}{Colors.END}"
-        print(f"{indent}⏺ {colored_title}")
+        self.logger.info(f"{indent}⏺ {colored_title}")
         self.active_sections.append(title)
     
     def item(self, icon: str, message: str, color: str = "") -> None:
         """Print an item with custom icon and color"""
         indent = self._get_indent()
         formatted = self._format_message(icon, message, color)
-        print(f"{indent}  ⎿  {formatted}")
+        self.logger.info(f"{indent}  ⎿  {formatted}")
     
     def success(self, message: str) -> None:
         """Print a success item with green checkmark"""

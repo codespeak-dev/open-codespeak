@@ -2,6 +2,7 @@ import shutil
 import os
 import secrets
 import re
+import logging
 from jinja2 import Environment, FileSystemLoader
 
 from phase_manager import State, Phase, Context
@@ -52,6 +53,9 @@ def generate_django_project_from_template(project_path: str, project_name: str, 
         render_and_write(template_path, output_path)
 
 class GenerateDjangoProject(Phase):
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(__class__.__qualname__)
     description = "Create a new Django project"
     
     def run(self, state: State, context: Context) -> dict:
@@ -59,10 +63,10 @@ class GenerateDjangoProject(Phase):
         project_path = state["project_path"]
 
         if os.path.exists(project_path) and os.path.exists(os.path.join(project_path, "manage.py")):
-            print(f"Django project already exists at {project_path}, skipping generation")
+            self.logger.info(f"Django project already exists at {project_path}, skipping generation")
             return {}
 
-        print(f"Generating Django project in {project_path} with name {project_name}")
+        self.logger.info(f"Generating Django project in {project_path} with name {project_name}")
         generate_django_project_from_template(project_path, project_name, "web")
         return {}
 
