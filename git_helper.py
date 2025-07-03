@@ -88,10 +88,11 @@ class GitHelper:
             print(f"No commit found for message substring '{message_substring}'")
             return None
         elif len(lines) > 1:
-            print(f"Multiple commits found for message substring '{message_substring}':")
+            print(f"    Multiple commits found for message substring '{message_substring}':")
             for line in lines:
-                print(f"  {line.strip()}")
-            return None
+                print(f"        {line.strip()}")
+            print(f"    Taking the most recent one: {lines[0].strip()}")
+            return lines[0].strip()
         else:
             return lines[0].strip()
     
