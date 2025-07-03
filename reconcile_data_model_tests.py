@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 import json
-from typing import Any, Tuple
+from typing import Any
 from colors import Colors
 import llm_cache
 from phase_manager import State, Phase, Context
@@ -20,7 +20,7 @@ FIX_ISSUES_SYSTEM_PROMPT = """You are an expert Django developer with access to 
 Use the tools methodically to understand the codebase and make comprehensive fixes that follow Django best practices. Consider the conversation history to avoid repeating the same mistakes."""
 
 
-def run_tests(test_file_path: str, project_path: str) -> Tuple[bool, str]:
+def run_tests(test_file_path: str, project_path: str) -> tuple[bool, str]:
     """Run test using unittest"""
 
     if test_file_path.find(project_path) != 0:
@@ -181,7 +181,7 @@ def execute_tool(tool_name: str, tool_input: dict[str, Any], project_path: str) 
         return error_msg
 
 
-def fix_issues(project_path: str, test_file_path: str, test_code: str, error_output: str, message_history: list | None = None) -> Tuple[bool, str, str]:
+def fix_issues(project_path: str, test_file_path: str, test_code: str, error_output: str, message_history: list | None = None) -> tuple[bool, str, str]:
     """Use Claude with tools to fix issues revealed by integration tests"""
     print(f"\n{Colors.BRIGHT_YELLOW}🔍 Starting automated issue fixing process{Colors.END}")
     print(f"   Project path: {project_path}")
