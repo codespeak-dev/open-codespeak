@@ -75,7 +75,11 @@ def extract_models_and_fields(prompt: str) -> List[Entity]:
             max_tokens=10000,
             temperature=0,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
+            thinking={
+                "type": "enabled",
+                "budget_tokens": 4000
+            }
         ) as stream:
             for text in stream.text_stream:
                 response_text += text
