@@ -25,6 +25,7 @@ from spec_processor import SpecProcessor
 from git_helper import GitHelper
 from incremental_mode import IncrementalMode
 from ensure_server_starts import EnsureServerStarts
+from lint_and_fix_phase import LintAndFix
 
 dotenv.load_dotenv()
 
@@ -115,6 +116,7 @@ def main():
             GenerateDjangoProject(),
             ExtractEntities(),
             GenerateModels(),
+            LintAndFix(),
             MakeMigrations(),
             Migrate(),
             GenerateDataModelTests(),
