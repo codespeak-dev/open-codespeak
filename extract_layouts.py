@@ -1,4 +1,3 @@
-from typing import Dict, Optional
 import llm_cache
 import json
 from anthropic.types import ToolParam

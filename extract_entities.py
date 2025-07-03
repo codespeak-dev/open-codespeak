@@ -5,7 +5,7 @@ import llm_cache
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
 from pydantic import BaseModel
-from typing import Dict, List, Optional
+from typing import Dict, List
 from anthropic.types import ToolParam
 
 SYSTEM_PROMPT = """
