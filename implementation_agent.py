@@ -11,6 +11,7 @@ from colors import Colors
 from google import genai
 from google.genai import types as gemini_types
 from tree_printer import tree_section, tree_info
+from fileutils import format_file_content
 
 # Tool definitions constant for reuse
 TOOLS_DEFINITIONS = [
@@ -150,6 +151,7 @@ You have access to the following tools:
 
 2. **Read Before Write**: ALWAYS use read_file before edit_file or write_file.
 """
+
 
 class ImplementationAgent:
     def __init__(self, project_path: str, provider: str | None = None, facts: str | None = None):
@@ -369,10 +371,6 @@ class ImplementationAgent:
         full_path = os.path.join(self.project_path, file_path) if not os.path.isabs(file_path) else file_path
 
         try:
-            lines = []
-            line_number = 0
-            truncated = False
-
             with open(full_path, 'r', encoding='utf-8') as f:
                 content = f.read()
 
@@ -388,53 +386,25 @@ class ImplementationAgent:
                 'size': file_stats.st_size
             }
 
-            # Process lines for display
-            all_lines = content.splitlines()
-
-            # Determine which lines to process
-            start_line = (offset - 1) if offset is not None else 0
-            end_line = len(all_lines)
-
-            if limit is not None and offset is not None:
-                end_line = min(len(all_lines), start_line + limit)
-            elif limit is not None and offset is None:
-                end_line = min(len(all_lines), limit)
-
-            for i in range(start_line, end_line):
-                line = all_lines[i]
-                line_number = i + 1
-
-                # Truncate long lines
-                line_content = line
-                if len(line_content) > 2000:
-                    line_content = line_content[:2000] + '... (truncated)'
-
-                # Format with line numbers (cat -n style)
-                formatted_line = f"{line_number}\t{line_content}"
-                lines.append(formatted_line)
-
-            # Check if we truncated due to limit
-            if limit is not None and len(all_lines) > end_line:
-                truncated = True
-
-            display_content = '\n'.join(lines)
+            # Format content using utility function
+            display_content, metadata = format_file_content(content, offset, limit)
 
             # Create concise status message
             if offset is not None and limit is not None:
-                status_msg = f"lines {offset}-{start_line + len(lines)}"
+                status_msg = f"lines {offset}-{metadata.end_line}"
             elif offset is not None:
-                status_msg = f"{len(lines)} lines from {offset}"
+                status_msg = f"{metadata.lines_processed} lines from {offset}"
             elif limit is not None:
-                status_msg = f"first {len(lines)} lines"
+                status_msg = f"first {metadata.lines_processed} lines"
             else:
-                status_msg = f"{len(lines)} lines"
+                status_msg = f"{metadata.lines_processed} lines"
 
-            if truncated:
+            if metadata.truncated:
                 status_msg += " [TRUNCATED]"
 
             tree_section(f"Read({file_path})", Colors.BRIGHT_GREEN)
             tree_info(f"Read {status_msg}")
-            self.history.append(f"Read file: {file_path} ({len(lines)} lines)")
+            self.history.append(f"Read file: {file_path} ({metadata.lines_processed} lines)")
             return display_content
 
         except Exception as e:
