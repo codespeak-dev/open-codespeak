@@ -109,8 +109,24 @@ h1 {
 .timestamp {
     color: #888;
     font-size: 11px;
-    margin-right: 6px;
-    min-width: 120px;
+    margin-right: 12px;
+    align-self: flex-start;
+}
+
+.log-level {
+    color: #888;
+    font-size: 11px;
+    margin-right: 12px;
+    text-align: center;
+    align-self: flex-start;
+}
+
+.logger-name {
+    color: #888;
+    font-size: 11px;
+    margin-right: 12px;
+    text-align: center;
+    align-self: flex-start;
 }
 
 .info-table {
@@ -130,7 +146,6 @@ h1 {
 .info-table td:first-child {
     font-weight: bold;
     background-color: #e9ecef;
-    width: 150px;
 }
 
 .copy-btn {
@@ -160,4 +175,101 @@ h1 {
 
 .copy-btn:active {
     background: #495057;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+}
+
+.info-section {
+    flex: 1;
+}
+
+.filter-section {
+    margin-bottom: 15px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.filter-container {
+    margin-bottom: 10px;
+}
+
+.filter-container label {
+    font-weight: bold;
+    margin-right: 8px;
+    color: #333;
+}
+
+.filter-container input {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    width: 300px;
+    max-width: 100%;
+}
+
+.filter-container input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.filter-info-table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    border: 1px solid #dee2e6;
+}
+
+.filter-info-table td {
+    padding: 4px 8px;
+    border: 1px solid #dee2e6;
+    font-size: 12px;
+}
+
+.filter-info-table td:first-child {
+    font-weight: bold;
+    background-color: #e9ecef;
+}
+
+.mode-toggle {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+.mode-toggle:hover {
+    background-color: #0056b3;
+}
+
+.mode-toggle:active {
+    background-color: #004085;
+}
+
+.plain-mode .log-entry {
+    margin-left: 0 !important;
+}
+
+.plain-mode .children {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+.log-entry.filtered-hidden {
+    display: none !important;
 }

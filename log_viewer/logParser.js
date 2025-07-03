@@ -108,6 +108,38 @@ class LogParser {
     return text.replace(this.timestampRegex, '').trim();
   }
 
+  extractLogLevel(text) {
+    // Look for log level after timestamp removal, with dash and spaces
+    const textWithoutTimestamp = this.removeTimestamp(text);
+    const logLevelMatch = textWithoutTimestamp.match(/^-\s+(DEBUG|INFO|WARN|WARNING|ERROR|FATAL|TRACE)\s+-\s+/i);
+    if (logLevelMatch) {
+      return {
+        level: logLevelMatch[1].toUpperCase(),
+        textWithoutLevel: textWithoutTimestamp.substring(logLevelMatch[0].length).trim()
+      };
+    }
+    return {
+      level: null,
+      textWithoutLevel: textWithoutTimestamp
+    };
+  }
+
+  extractLoggerName(text) {
+    // Look for logger name after log level extraction, with dash and spaces
+    const logLevelInfo = this.extractLogLevel(text);
+    const loggerMatch = logLevelInfo.textWithoutLevel.match(/^([a-zA-Z0-9._-]+)\s+-\s+/);
+    if (loggerMatch) {
+      return {
+        loggerName: loggerMatch[1],
+        textWithoutLogger: logLevelInfo.textWithoutLevel.substring(loggerMatch[0].length).trim()
+      };
+    }
+    return {
+      loggerName: null,
+      textWithoutLogger: logLevelInfo.textWithoutLevel
+    };
+  }
+
   parseContent(lines) {
     const entries = [];
     const stack = [];
@@ -119,11 +151,14 @@ class LogParser {
       if (text === '') continue;
 
       const timestamp = this.extractTimestamp(text);
-      const textWithoutTimestamp = this.removeTimestamp(text);
+      const logLevelInfo = this.extractLogLevel(text);
+      const loggerInfo = this.extractLoggerName(text);
       const entry = {
-        text: textWithoutTimestamp,
+        text: loggerInfo.textWithoutLogger,
         originalText: text,
         level: level,
+        logLevel: logLevelInfo.level,
+        loggerName: loggerInfo.loggerName,
         children: [],
         timestamp: timestamp,
         id: this.generateStableId(text, timestamp)
