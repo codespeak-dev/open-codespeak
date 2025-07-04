@@ -28,6 +28,7 @@ from incremental_mode import IncrementalMode
 from ensure_server_starts import EnsureServerStarts
 from lint_and_fix_phase import LintAndFix
 from utils.logging_util import LoggingUtil
+from utils.flamegraph import Flamegraph
 
 dotenv.load_dotenv()
 
@@ -58,6 +59,7 @@ def main():
     if args.incremental:
         logger.info(f"Running in incremental mode from {args.incremental}")
         project_path = args.incremental
+        project_name = os.path.basename(project_path)
         init = Init({
             "project_path": project_path,
         }, {
@@ -88,11 +90,12 @@ def main():
         spec = spec_processor.process(raw_spec)
 
         project_path = os.path.dirname(spec_file)
+        project_name = os.path.basename(project_path)
         init = Init({
             "spec_file": spec_file,
             "spec": spec,
+            "project_name": project_name,
             "project_path": project_path,
-            "project_name": os.path.basename(project_path),
         }, {
             "spec": text_file("spec.processed.md"),
         })
@@ -142,10 +145,10 @@ def main():
         context=context,
     )
 
-    state = pm.run_state_machine()
-
-    project_name = state["project_name"]
-    project_path = state["project_path"]
+    try:
+        pm.run_state_machine()
+    finally:
+        Flamegraph.save_report(project_name, f"{project_path}/durations.svg")
 
     logger.info(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
     logger.info(f"Start Django server via: python {project_path}/manage.py runserver")

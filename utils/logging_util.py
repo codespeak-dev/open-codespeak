@@ -3,6 +3,7 @@ import logging
 import typing
 from datetime import datetime, timezone
 from os import linesep
+from utils.flamegraph import Flamegraph
 
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider, ReadableSpan
@@ -113,6 +114,8 @@ class LoggingUtil:
         span = cls.tracer.start_as_current_span(name if name else "(unnamed)")
         span.__enter__()
 
+        Flamegraph.start_span(name if name else "(unnamed)")
+
     @classmethod
     def exit_span(cls, name: str, annotated_function=None):
         LoggingUtil.ensure_initialized()
@@ -121,6 +124,8 @@ class LoggingUtil:
         logging.getLogger(LoggingUtil.__class__.__qualname__).debug(f"Exited span: {name}, {cause}, new depth: {new_depth}")
 
         trace.get_current_span().__exit__(None, None, None)
+
+        Flamegraph.end_span()
 
     @classmethod
     def _find_indenter(cls) -> IndentingFormatter:
