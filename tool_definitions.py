@@ -3,8 +3,7 @@ Typed tool definitions with provider-agnostic converters
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Union
-import json
+from typing import Dict, List, Optional, Any
 
 
 @dataclass
