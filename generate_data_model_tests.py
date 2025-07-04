@@ -4,7 +4,7 @@ import logging
 from colors import Colors
 from phase_manager import State, Phase, Context
 from with_step import with_step
-from fileutils import load_template as load_template_jinja, LLMFileGenerator
+from fileutils import load_prompt_template, LLMFileGenerator
 
 SYSTEM_PROMPT = "You are an expert Django developer."
 TEST_FILE_PATH = os.path.join("web", "test_data_model.py")
@@ -69,7 +69,7 @@ class GenerateDataModelTests(Phase):
     def generate_data_model_tests(self, context: Context, models_content: str, project_path: str) -> str:
         """Use Claude to generate data model tests based on models.py"""
 
-        user_prompt = load_template_jinja("prompts/generate_data_model_tests.j2", models_content=models_content)
+        user_prompt = load_prompt_template("generate_data_model_tests", models_content=models_content)
 
         generator = LLMFileGenerator(max_tokens=8192)
         test_file_path = os.path.join(project_path, TEST_FILE_PATH)
@@ -86,7 +86,7 @@ class GenerateDataModelTests(Phase):
     def generate_data_model_tests_incremental(self, context: Context, old_models: str, new_models: str, old_entities: list[dict], new_entities: list[dict], old_tests: str, project_path: str) -> str:
         """Use Claude to generate incremental data model tests based on changes"""
 
-        user_prompt = load_template_jinja("prompts/generate_data_model_tests_incremental.j2", 
+        user_prompt = load_prompt_template("generate_data_model_tests_incremental",
                                          old_models=old_models,
                                          new_models=new_models,
                                          old_entities=old_entities,

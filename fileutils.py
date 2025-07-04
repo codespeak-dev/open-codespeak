@@ -93,6 +93,21 @@ def load_template(template_path: str, **kwargs) -> str:
     return template.render(**kwargs)
 
 
+def load_prompt_template(template_name: str, **kwargs) -> str:
+    """
+    Load a Jinja2 template from the prompts directory and render it with provided kwargs.
+
+    Args:
+        template_name: Name of the template file without extension (e.g., "extract_entities")
+        **kwargs: Arbitrary keyword arguments to pass to the template
+
+    Returns:
+        Rendered template content as string
+    """
+    template_path = f"prompts/{template_name}.j2"
+    return load_template(template_path, **kwargs)
+
+
 class LLMFileGenerator:
     """
     Handles the common pattern of LLM calls that expect a single file write operation.

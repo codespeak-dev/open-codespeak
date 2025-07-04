@@ -4,7 +4,7 @@ import json
 from llm_cache.anthropic_cached import CachedAnthropic
 import logging
 from jinja2 import Environment, FileSystemLoader
-from fileutils import load_template as load_template_jinja, LLMFileGenerator
+from fileutils import load_prompt_template, LLMFileGenerator
 
 from extract_entities import Entity, to_entities
 from phase_manager import State, Phase, Context
@@ -40,7 +40,7 @@ def generate_models_with_llm(client: CachedAnthropic, project_path: str, old_mod
     You are an expert Django developer.
     """
 
-    user_prompt = load_template_jinja("prompts/generate_models_incremental.j2", old_models=old_models, old_entities=old_entities, new_entities=new_entities)
+    user_prompt = load_prompt_template("generate_models_incremental", old_models=old_models, old_entities=old_entities, new_entities=new_entities)
     
     generator = LLMFileGenerator(max_tokens=10000)
     output_file_path = os.path.join(project_path, "web/models.py")

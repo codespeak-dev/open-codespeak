@@ -5,7 +5,7 @@ from phase_manager import State, Phase, Context
 from with_step import with_step
 from pydantic import BaseModel
 from anthropic.types import ToolParam
-from fileutils import format_file_content, load_template as load_template_jinja
+from fileutils import format_file_content, load_prompt_template
 
 class EntityField(BaseModel):
     name: str
@@ -108,7 +108,7 @@ def extract_models_and_fields(spec: str, context: Context, existing_entities=Non
 
         # Adds line numbers to the spec, to make it easier to understand the diff
         spec, _ = format_file_content(spec, offset=None, limit=None, truncate_line=None)
-        user_prompt = load_template_jinja("prompts/extract_entities.j2", existing_entities=existing_entities, spec_diff=spec_diff, spec=spec)
+        user_prompt = load_prompt_template("extract_entities", existing_entities=existing_entities, spec_diff=spec_diff, spec=spec)
 
         message = context.anthropic_client.create(
             model="claude-3-7-sonnet-latest",
