@@ -91,6 +91,22 @@ h1 {
 .level-3 { background-color: #e8eaed; }
 .level-4 { background-color: #dee1e6; }
 
+.log-row.leaf-node:not(.plain-mode .log-row) {
+    background-color: #f0f8ff;
+}
+
+.log-row.leaf-node:not(.plain-mode .log-row):hover {
+    background-color: #e6f3ff;
+}
+
+.plain-mode .log-row.leaf-node {
+    background-color: inherit;
+}
+
+.plain-mode .log-row.leaf-node:hover {
+    background-color: #f0f0f0;
+}
+
 .refresh-btn {
     background-color: #4CAF50;
     color: white;

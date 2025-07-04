@@ -21,7 +21,7 @@ class HtmlGenerator {
         <div class="filter-section">
             <div class="filter-container">
                 <label for="text-filter">Filter:</label>
-                <input type="text" id="text-filter" placeholder="Type to filter entries...">
+                <input type="text" id="text-filter" placeholder="Type to filter entries. ⌘+K to focus, Esc to clear">
                 <div class="header-buttons">
                     <button id="collapse-all" class="mode-toggle" onclick="collapseAll()">
                         Collapse All
@@ -177,14 +177,25 @@ class HtmlGenerator {
 
         function applyViewMode() {
             const container = document.getElementById('log-container');
+            const collapseBtn = document.getElementById('collapse-all');
             if (!container) return;
 
             if (currentMode === 'plain') {
                 container.classList.add('plain-mode');
+                // Disable collapse all button in plain mode
+                if (collapseBtn) {
+                    collapseBtn.disabled = true;
+                    collapseBtn.style.opacity = '0.5';
+                }
                 // Create flat representation
                 createPlainView();
             } else {
                 container.classList.remove('plain-mode');
+                // Enable collapse all button in structured mode
+                if (collapseBtn) {
+                    collapseBtn.disabled = false;
+                    collapseBtn.style.opacity = '1';
+                }
                 // Restore structured view
                 restoreStructuredView();
             }
@@ -378,6 +389,29 @@ class HtmlGenerator {
                 filterInput.addEventListener('input', applyFilter);
             }
         });
+
+        // Add global keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            const filterInput = document.getElementById('text-filter');
+            
+            // Escape: clear filter
+            if (event.key === 'Escape') {
+                if (filterInput && filterInput.value !== '') {
+                    filterInput.value = '';
+                    applyFilter();
+                    event.preventDefault();
+                }
+            }
+            
+            // Meta+K (Cmd+K on Mac): focus filter input
+            if (event.key === 'k' && event.metaKey) {
+                if (filterInput) {
+                    filterInput.focus();
+                    filterInput.select();
+                    event.preventDefault();
+                }
+            }
+        });
         
         // Setup Server-Sent Events for file watching
         function setupFileWatcher() {
@@ -447,10 +481,11 @@ class HtmlGenerator {
       : '';
 
     const rowClickHandler = hasChildren ? `onclick="handleRowClick(event, '${entry.id}')"` : '';
+    const leafNodeClass = hasChildren ? '' : ' leaf-node';
     
     return `
       <div class="log-entry">
-        <div class="log-row level-${Math.min(entry.level, 4)}" ${rowClickHandler}>
+        <div class="log-row level-${Math.min(entry.level, 4)}${leafNodeClass}" ${rowClickHandler}>
           ${expandBtn}
           ${timestampDisplay}
           ${logLevelDisplay}
