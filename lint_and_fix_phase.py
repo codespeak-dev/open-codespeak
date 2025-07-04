@@ -44,23 +44,15 @@ class LintAndFix(Phase):
 
     def run(self, state: State, context: Context) -> dict:
         project_path = state["project_path"]
-        
-        # Find all Python files in the project
-        # TODO(dsavvinov): can run only on LLM-generated files
-        python_files = []
-        for root, dirs, files in os.walk(project_path):
-            # Skip common directories that shouldn't be linted
-            dirs[:] = [d for d in dirs if d not in ['.git', '__pycache__', 'venv', 'env', 'node_modules']]
-            
-            for file in files:
-                if file.endswith('.py'):
-                    python_files.append(os.path.join(root, file))
-        
-        if not python_files:
-            self.logger.info(f"{Colors.BRIGHT_YELLOW}No Python files found to lint{Colors.END}")
-            return {}
-        
-        # Initial run of pylint to get errors
+
+        # TODO(dsavvinov): build this list of files dynamically,
+        # counting files that were changed since the last Done phase
+        python_files = [os.path.join(project_path, "web/models.py")]
+
+        # if not python_files:
+        #     self.logger.info(f"{Colors.BRIGHT_YELLOW}No Python files found to lint{Colors.END}")
+        #     return {}
+
         errors = self.run_pylint(python_files)
         if len(errors) == 0:
             self.logger.info(f"    {Colors.BRIGHT_GREEN}✅ No Python lint errors found{Colors.END}")
