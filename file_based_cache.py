@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 import re
+import time
 from typing import Any
 import json
 
@@ -118,6 +119,8 @@ class FileBasedCache:
         self.key_serializer = Serializer(sanitizer)
         self.value_serializer = self.key_serializer
 
+        self.metadata = CacheMetadata(self.cache_dir.joinpath(".metadata"), run_id=str(time.time()))
+
         version_file = self.cache_dir.joinpath(".version")
         if not version_file.exists():
             version_file.write_text(self.VERSION_STRING)
@@ -137,12 +140,14 @@ class FileBasedCache:
     def _get(self, key: CacheKey) -> Any:
         file_name = self._file_name(key, "json")
         if file_name.exists():
+            self.metadata.append("hits", key.hash)
             return self.value_serializer.deserialize_with_pydantic(json.loads(file_name.read_text()))
         
         file_name = self._file_name(key, "txt")
         if file_name.exists():
             return file_name.read_text()
         
+        self.metadata.append("misses", key.hash)
         return None
     
     def _set(self, key: CacheKey, value: Any):
@@ -188,6 +193,45 @@ class FileBasedCache:
             "__method_name": method_name,
             "kwargs": kwargs
         })
+
+
+class PersistentCounter:
+    def __init__(self, file_name: Path):
+        self.file_name = file_name
+        if not self.file_name.exists():
+            self.file_name.parent.mkdir(parents=True, exist_ok=True)
+            self.file_name.write_text("0")
+        self.counter = int(self.file_name.read_text())
+    
+    def __call__(self):
+        self.counter += 1
+        self.file_name.write_text(str(self.counter))
+        return self.counter
+
+
+class CacheMetadata:
+    def __init__(self, file_name: Path, run_id: str):
+        self.file_name = file_name
+        if not self.file_name.exists():
+            self.file_name.parent.mkdir(parents=True, exist_ok=True)
+            self.file_name.write_text("{}")
+        self.run_id = run_id
+        
+    def __getitem__(self, key: str) -> Any:
+        return json.loads(self.file_name.read_text()).get(self.run_id, {}).get(key)
+
+    def __setitem__(self, key: str, value: Any):
+        data = json.loads(self.file_name.read_text())
+        data[self.run_id] = data.get(self.run_id, {})
+        data[self.run_id][key] = value
+        self.file_name.write_text(json.dumps(data, indent=2))
+
+    def append(self, key: str, value: Any):
+        data = json.loads(self.file_name.read_text())
+        data[self.run_id] = data.get(self.run_id, {})
+        data[self.run_id][key] = data[self.run_id].get(key, [])
+        data[self.run_id][key].append(value)
+        self.file_name.write_text(json.dumps(data, indent=2))
 
 
 if __name__ == "__main__":
