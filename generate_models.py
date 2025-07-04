@@ -3,10 +3,8 @@ import re
 import json
 import llm_cache
 import logging
-from typing import cast
-from anthropic.types import ToolParam
 from jinja2 import Environment, FileSystemLoader
-from fileutils import load_template as load_template_jinja
+from fileutils import load_template as load_template_jinja, LLMFileGenerator
 
 from extract_entities import Entity, to_entities
 from phase_manager import State, Phase, Context
@@ -36,26 +34,6 @@ def generate_models_from_template(project_path: str, project_name: str, entities
     for template_path, output_path in files_to_template:
         render_and_write(template_path, output_path)
 
-TOOLS_DEFINITIONS: list[ToolParam] = [
-    ToolParam(
-        name="write_file",
-        description="Write content to a new file",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "file_path": {
-                    "type": "string",
-                    "description": "Path to the file to create"
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Content to write to the file"
-                }
-            },
-            "required": ["file_path", "content"]
-        }
-    )
-]
 
 def generate_models_with_llm(project_path: str, old_models: str, old_entities: list[dict], new_entities: list[dict]):
     client = llm_cache.Anthropic()
@@ -65,30 +43,17 @@ def generate_models_with_llm(project_path: str, old_models: str, old_entities: l
     """
 
     user_prompt = load_template_jinja("prompts/generate_models_incremental.j2", old_models=old_models, old_entities=old_entities, new_entities=new_entities)
-
-    message = client.messages.create(
-        model="claude-3-7-sonnet-latest", 
-        max_tokens=10000,
-        temperature=0,
+    
+    generator = LLMFileGenerator(max_tokens=10000)
+    output_file_path = os.path.join(project_path, "web/models.py")
+    
+    generator.generate_and_write(
+        client,
         system=system_prompt,
-        tools=TOOLS_DEFINITIONS,
-        messages=[{"role": "user", "content": user_prompt}]
+        messages=[{"role": "user", "content": user_prompt}],
+        expected_file_path="web/models.py",
+        output_file_path=output_file_path
     )
-
-    tool_calls = [block for block in message.content if hasattr(block, 'type') and block.type == "tool_use"]
-    if len(tool_calls) > 1:
-        raise ValueError("Only one tool call is allowed, got: " + str(tool_calls))
-
-    for tool_call in tool_calls:
-        if tool_call.name == "write_file":
-            tool_input = cast(dict, tool_call.input)
-            if tool_input["file_path"] == "web/models.py":
-                with open(os.path.join(project_path, "web/models.py"), "w", encoding="utf-8") as f:
-                    f.write(tool_input["content"])
-            else:
-                raise ValueError(f"Only writing to web/models.py is supported, got: {tool_input['file_path']}")
-        else:
-            raise ValueError(f"Unknown tool: {tool_call.name}")
 
 class GenerateModels(Phase):
     def __init__(self):
