@@ -358,7 +358,8 @@ class ImplementationAgent:
                     entries.append({
                         'name': file,
                         'is_directory': is_dir,
-                        'size': 0 if is_dir else stats.st_size,
+                        # this will break caching, so if you need it take care of changing file sizes (e.g. logs)
+                        # 'size': 0 if is_dir else stats.st_size,
                     })
                 except Exception as e:
                     # Log error internally but don't fail the whole listing
