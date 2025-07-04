@@ -84,34 +84,27 @@ class HtmlGenerator {
             updateModeDisplay();
             applyViewMode();
             
-            // Restore filter text
+            // Clear filter and collapse all on page refresh
             const filterInput = document.getElementById('text-filter');
-            if (filterInput && state.filterText) {
-                filterInput.value = state.filterText;
+            if (filterInput) {
+                filterInput.value = '';
                 applyFilter();
             } else {
                 updateFilterCount();
             }
             
-            // Restore expanded sections
-            Object.entries(state.expandedSections).forEach(([entryId, isExpanded]) => {
-                const children = document.getElementById('children-' + entryId);
-                const btn = children ? children.parentElement.querySelector('.expand-btn') : null;
-                
-                if (children && btn) {
-                    if (isExpanded) {
-                        children.classList.remove('hidden');
-                        btn.textContent = '▼';
-                    } else {
-                        children.classList.add('hidden');
-                        btn.textContent = '▶';
-                    }
+            // Collapse all sections on page refresh
+            document.querySelectorAll('.children').forEach(children => {
+                children.classList.add('hidden');
+                const btn = children.parentElement.querySelector('.expand-btn');
+                if (btn && !btn.classList.contains('no-children')) {
+                    btn.textContent = '▶';
                 }
             });
             
-            // Restore scroll position
+            // Reset scroll position to top
             setTimeout(() => {
-                window.scrollTo(0, state.scrollPosition);
+                window.scrollTo(0, 0);
             }, 100);
         }
         
