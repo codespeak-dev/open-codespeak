@@ -135,6 +135,7 @@ class LogParserServer {
 
 // Command line usage
 if (require.main === module) {
+  const fs = require('fs');
   const args = process.argv.slice(2);
   const logFilePath = args[0];
   const port = args[1] ? parseInt(args[1]) : 3000;
@@ -143,6 +144,16 @@ if (require.main === module) {
   if (!logFilePath) {
     console.log('Usage: node server.js <log-file-path> [port] [time-window-minutes]');
     console.log('Example: node server.js /var/log/app.log 3000 60');
+    process.exit(1);
+  }
+
+  // Check if log file exists before starting server
+  try {
+    fs.accessSync(logFilePath, fs.constants.F_OK);
+    console.log(`Log file found: ${logFilePath}`);
+  } catch (error) {
+    console.error(`Error: Log file not found or not accessible: ${logFilePath}`);
+    console.error('Please check the file path and permissions.');
     process.exit(1);
   }
 

@@ -129,9 +129,16 @@ class LogParser {
     const logLevelInfo = this.extractLogLevel(text);
     const loggerMatch = logLevelInfo.textWithoutLevel.match(/^([a-zA-Z0-9._-]+)\s+-\s+/);
     if (loggerMatch) {
+      let textWithoutLogger = logLevelInfo.textWithoutLevel.substring(loggerMatch[0].length);
+      // Remove leading newline characters if present (could be literal \n or actual newlines)
+      if (textWithoutLogger.startsWith('\\n')) {
+        textWithoutLogger = textWithoutLogger.substring(2);
+      } else if (textWithoutLogger.startsWith('\n')) {
+        textWithoutLogger = textWithoutLogger.substring(1);
+      }
       return {
         loggerName: loggerMatch[1],
-        textWithoutLogger: logLevelInfo.textWithoutLevel.substring(loggerMatch[0].length).trim()
+        textWithoutLogger: textWithoutLogger.trim()
       };
     }
     return {

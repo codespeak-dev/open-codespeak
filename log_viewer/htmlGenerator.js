@@ -12,45 +12,30 @@ class HtmlGenerator {
 <body>
     <div class="container">
         <div class="header">
-            <div class="info-section">
-                <table class="info-table">
-                    <tr>
-                        <td>File:</td>
-                        <td>${logFilePath}</td>
-                    </tr>
-                    <tr>
-                        <td>File Size:</td>
-                        <td>${fileStats ? fileStats.fileSizeBytes.toLocaleString() : 'N/A'} bytes</td>
-                    </tr>
-                    <tr>
-                        <td>Total Records:</td>
-                        <td>${fileStats ? fileStats.totalRecords.toLocaleString() : 'N/A'}</td>
-                    </tr>
-                </table>
+            <div class="file-info">
+                <span><strong>File:</strong> ${logFilePath}</span>
+                <span><strong>Size:</strong> ${fileStats ? fileStats.fileSizeBytes.toLocaleString() : 'N/A'} bytes</span>
+                <span><strong>Records:</strong> ${fileStats ? fileStats.totalRecords.toLocaleString() : 'N/A'}</span>
             </div>
-            <button id="mode-toggle" class="mode-toggle" onclick="toggleViewMode()">
-                <span id="mode-text">Plain</span>
-            </button>
         </div>
         <div class="filter-section">
             <div class="filter-container">
                 <label for="text-filter">Filter:</label>
                 <input type="text" id="text-filter" placeholder="Type to filter entries...">
+                <div class="header-buttons">
+                    <button id="collapse-all" class="mode-toggle" onclick="collapseAll()">
+                        Collapse All
+                    </button>
+                    <button id="mode-toggle" class="mode-toggle" onclick="toggleViewMode()">
+                        <span id="mode-text">Plain</span>
+                    </button>
+                </div>
             </div>
-            <table class="filter-info-table">
-                <tr>
-                    <td>Time Window:</td>
-                    <td>Last ${timeWindowMinutes} minutes</td>
-                </tr>
-                <tr>
-                    <td>Records in Time Window:</td>
-                    <td><span id="total-entries">${fileStats ? fileStats.recordsPassedCutoff.toLocaleString() : 'N/A'}</span></td>
-                </tr>
-                <tr>
-                    <td>Filtered Entries:</td>
-                    <td><span id="filtered-entries">${fileStats ? fileStats.recordsPassedCutoff.toLocaleString() : 'N/A'}</span></td>
-                </tr>
-            </table>
+            <div class="filter-info">
+                <span><strong>Time Window:</strong> Last ${timeWindowMinutes} minutes</span>
+                <span><strong>Records in Window:</strong> <span id="total-entries">${fileStats ? fileStats.recordsPassedCutoff.toLocaleString() : 'N/A'}</span></span>
+                <span><strong>Filtered:</strong> <span id="filtered-entries">${fileStats ? fileStats.recordsPassedCutoff.toLocaleString() : 'N/A'}</span></span>
+            </div>
         </div>
         <div id="log-container" class="log-table">
             ${this.generateEntries(entries)}
@@ -160,6 +145,12 @@ class HtmlGenerator {
         function handleRowClick(event, entryId) {
             // Don't toggle if clicking on the copy button
             if (event.target.classList.contains('copy-btn')) {
+                return;
+            }
+            
+            // If clicking directly on expand button, handle it
+            if (event.target.classList.contains('expand-btn') && !event.target.classList.contains('no-children')) {
+                toggleExpand(event.target, entryId);
                 return;
             }
             
@@ -293,36 +284,47 @@ class HtmlGenerator {
             const allEntries = document.querySelectorAll('.log-entry');
             let visibleCount = 0;
             
+            // First pass: check which entries match the filter directly
+            const matchingEntries = new Set();
             allEntries.forEach(entry => {
                 const logRow = entry.querySelector('.log-row');
                 if (!logRow) return;
                 
-                // Get the original text from the copy button's onclick attribute
+                // Get the original text from the copy button's data attribute
                 const copyBtn = logRow.querySelector('.copy-btn');
                 let originalText = '';
                 
                 if (copyBtn) {
-                    const onclick = copyBtn.getAttribute('onclick');
-                    const match = onclick && onclick.match(/copyToClipboard\('(.*)'\)/);
-                    if (match) {
-                        try {
-                            originalText = match[1]
-                                .replace(/\\'/g, "'")
-                                .replace(/\\"/g, '"')
-                                .replace(/\\n/g, ' ')
-                                .replace(/\\r/g, ' ')
-                                .replace(/\\t/g, ' ')
-                                // .replace(/\\\\/g, '\\');
-                        } catch (e) {
-                            originalText = match[1];
-                        }
-                    }
+                    originalText = copyBtn.getAttribute('data-original-text') || '';
                 }
                 
                 // Check if this entry matches the filter
                 const matches = !filterText || originalText.toLowerCase().includes(filterText);
                 
                 if (matches) {
+                    matchingEntries.add(entry);
+                }
+            });
+            
+            // Second pass: determine visibility including parent entries
+            allEntries.forEach(entry => {
+                let shouldBeVisible = false;
+                
+                // Entry is visible if it matches directly
+                if (matchingEntries.has(entry)) {
+                    shouldBeVisible = true;
+                } else {
+                    // Entry is visible if any descendant matches
+                    const descendants = entry.querySelectorAll('.log-entry');
+                    for (const descendant of descendants) {
+                        if (matchingEntries.has(descendant)) {
+                            shouldBeVisible = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (shouldBeVisible) {
                     entry.classList.remove('filtered-hidden');
                     visibleCount++;
                 } else {
@@ -348,6 +350,18 @@ class HtmlGenerator {
                     filteredCountElement.textContent = visibleEntries.length.toLocaleString();
                 }
             }
+        }
+
+        function collapseAll() {
+            // Find all children divs and collapse them
+            document.querySelectorAll('.children').forEach(children => {
+                children.classList.add('hidden');
+                const btn = children.parentElement.querySelector('.expand-btn');
+                if (btn && !btn.classList.contains('no-children')) {
+                    btn.textContent = '▶';
+                }
+            });
+            saveState();
         }
 
         
@@ -404,7 +418,7 @@ class HtmlGenerator {
   generateEntry(entry) {
     const hasChildren = entry.children && entry.children.length > 0;
     const expandBtn = hasChildren 
-      ? `<button class="expand-btn" onclick="toggleExpand(this, '${entry.id}')">▶</button>`
+      ? `<button class="expand-btn" onclick="event.stopPropagation(); toggleExpand(this, '${entry.id}')">▶</button>`
       : `<button class="expand-btn no-children">•</button>`;
     
     const timestampDisplay = entry.timestamp 
