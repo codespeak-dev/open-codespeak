@@ -1,6 +1,8 @@
 from pathlib import Path
+from file_based_cache import Sanitizer
 
-class PathSanitizer:
+
+class PathSanitizer(Sanitizer):
     def __init__(self, base_dir: str):
         self.base_dir = base_dir
 
