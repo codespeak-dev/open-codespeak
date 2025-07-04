@@ -105,29 +105,11 @@ class EntityExtractor:
     def extract_entities(
         self,
         spec: str,
+        user_prompt: str,
         existing_entities: Optional[List[Dict]] = None,
         spec_diff: Optional[str] = None,
-        user_prompt: Optional[str] = None
     ) -> List[Dict]:
         system_prompt = "You are an expert Django developer and an excellent data modeler."
-
-        if user_prompt is None:
-            user_prompt = f"""
-Extract Django models and their fields from the following specification:
-
-{spec}
-
-Please analyze the specification and extract all the data models (Django models) that would be needed.
-For each model, identify:
-1. The model name
-2. All fields with their appropriate Django field types
-3. Any relationships between models
-
-{"Previous entities for context: " + str(existing_entities) if existing_entities else ""}
-{"Recent changes to specification: " + spec_diff if spec_diff else ""}
-
-Use the entities tool to return the extracted models in the required format.
-"""
 
         message = self.client.create(
             model=self.model,
