@@ -13,6 +13,7 @@ from google.genai import types as gemini_types
 from phase_manager import Context
 from tree_printer import tree_section, tree_info
 from fileutils import format_file_content
+from utils.logging_util import LoggingUtil
 
 # Tool definitions constant for reuse
 TOOLS_DEFINITIONS = [
@@ -752,92 +753,102 @@ class ImplementationAgent:
         total_api_duration = 0.0
 
         # Continue conversation until no more tool calls
+        iteration_count = 0
         while True:
-            self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with {len(messages)} messages:")
-            for i, message in enumerate(messages):
-                content_preview = self.truncate_for_debug(str(message['content']))
-                self.logger.info(f"  Message {i+1} ({message['role']}): {content_preview}")
-            self.logger.info('')
+            iteration_count += 1
+            with LoggingUtil.Span(f"Conversation iteration #{iteration_count} ({len(messages)} messages)"):
+                self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Sending request to Claude with {len(messages)} messages:")
+                for i, message in enumerate(messages):
+                    content_preview = self.truncate_for_debug(str(message['content']))
+                    self.logger.info(f"  Message {i+1} ({message['role']}): {content_preview}")
+                self.logger.info('')
 
-            self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI STREAMING]{Colors.END} Starting streaming response...")
+                self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI STREAMING]{Colors.END} Starting streaming response...")
 
-            # Track API call duration
-            api_start_time = time.time()
+                # Track API call duration
+                api_start_time = time.time()
 
-            full_system_prompt = system_prompt + "\n" + self._tools_prompt
+                full_system_prompt = system_prompt + "\n" + self._tools_prompt
 
-            # Use the streaming helper for cleaner code with retry logic
-            def make_streaming_request():
-                with self.anthropic_client.stream(
-                    model="claude-sonnet-4-20250514", 
-                    max_tokens=10000,
-                    temperature=0,
-                    system=full_system_prompt,
-                    tools=self.get_anthropic_tools_schema(),
-                    messages=messages
-                ) as stream:
-                    self.logger.info(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
+                # Use the streaming helper for cleaner code with retry logic
+                def make_streaming_request():
+                    with self.anthropic_client.stream(
+                        model="claude-sonnet-4-20250514",
+                        max_tokens=10000,
+                        temperature=0,
+                        system=full_system_prompt,
+                        tools=self.get_anthropic_tools_schema(),
+                        messages=messages
+                    ) as stream:
+                        self.logger.info(f"{Colors.BRIGHT_GREEN}[AI STREAMING]{Colors.END} Receiving response:")
 
-                    # Stream text as it arrives
-                    for text in stream.text_stream:
-                        self.logger.info(f"{Colors.GREY}{text}{Colors.END}")
+                        # Stream text as it arrives
+                        for text in stream.text_stream:
+                            self.logger.info(f"{Colors.GREY}{text}{Colors.END}")
 
-                    self.logger.info('')  # New line after streaming text
+                        self.logger.info('')  # New line after streaming text
 
-                    # Get the final message with all content blocks
-                    return stream.get_final_message()
+                        # Get the final message with all content blocks
+                        return stream.get_final_message()
 
-            final_message = self.retry_with_backoff(make_streaming_request)
+                with LoggingUtil.Span(f"Making streaming request"):
+                    final_message = self.retry_with_backoff(make_streaming_request)
 
-            api_end_time = time.time()
-            api_call_duration = api_end_time - api_start_time
-            total_api_duration += api_call_duration
+                api_end_time = time.time()
+                api_call_duration = api_end_time - api_start_time
+                total_api_duration += api_call_duration
 
-            self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI RESPONSE]{Colors.END} Streaming completed")
-            self.logger.info(f"  Output tokens: {final_message.usage.output_tokens}")
-            self.logger.info(f"  API call duration: {api_call_duration:.2f}s")
-            output_tokens += final_message.usage.output_tokens
+                self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI RESPONSE]{Colors.END} Streaming completed")
+                self.logger.info(f"  Output tokens: {final_message.usage.output_tokens}")
+                self.logger.info(f"  API call duration: {api_call_duration:.2f}s")
+                output_tokens += final_message.usage.output_tokens
 
-            # Add assistant message to conversation  
-            messages.append({
-                "role": "assistant", 
-                "content": final_message.content
-            })
-
-            # Check if there are tool calls to execute
-            tool_calls = [block for block in final_message.content if hasattr(block, 'type') and block.type == "tool_use"]
-
-            if not tool_calls:
-                self.logger.info(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more tool calls, conversation complete")
-                break
-
-            self.logger.info(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(tool_calls)} tool calls")
-
-            # Execute tool calls and collect results
-            tool_results = []
-            for tool_call in tool_calls:
-                # Cast tool_call.input to dict for type safety  
-                tool_input = cast(dict, tool_call.input)
-                result = self.execute_tool_call(tool_call.name, tool_input)
-
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": tool_call.id,
-                    "content": json.dumps(result)
+                # Add assistant message to conversation
+                messages.append({
+                    "role": "assistant",
+                    "content": final_message.content
                 })
 
-                # Only show errors or non-read operations in detail
-                if not result['success'] or tool_call.name != 'read_file':
-                    result_preview = self.truncate_for_debug(json.dumps(result))
-                    self.logger.info(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
-                    if not result['success']:
-                        self.logger.info(f"  Result: {result_preview}")
+                # Check if there are tool calls to execute
+                tool_calls = [block for block in final_message.content if hasattr(block, 'type') and block.type == "tool_use"]
 
-            # Add tool results to conversation
-            messages.append({
-                "role": "user",
-                "content": tool_results
-            })
+                if not tool_calls:
+                    self.logger.info(f"{Colors.BRIGHT_GREEN}[CONVERSATION]{Colors.END} No more tool calls, conversation complete")
+                    break
+
+                self.logger.info(f"{Colors.BRIGHT_CYAN}[TOOL EXECUTION]{Colors.END} Processing {len(tool_calls)} tool calls")
+
+                # Execute tool calls and collect results
+                tool_results = []
+                for tool_call in tool_calls:
+                    # Cast tool_call.input to dict for type safety
+                    tool_input = cast(dict, tool_call.input)
+                    span_name = f"Implementing \"{tool_call.name}\" tool call"
+                    file_path = tool_input.get("path")
+                    if file_path:
+                        span_name = span_name + f", file: {file_path}"
+
+                    with LoggingUtil.Span(span_name):
+                        result = self.execute_tool_call(tool_call.name, tool_input)
+
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_call.id,
+                        "content": json.dumps(result)
+                    })
+
+                    # Only show errors or non-read operations in detail
+                    if not result['success'] or tool_call.name != 'read_file':
+                        result_preview = self.truncate_for_debug(json.dumps(result))
+                        self.logger.info(f"{Colors.BRIGHT_GREEN if result['success'] else Colors.BRIGHT_RED}[TOOL RESULT]{Colors.END} {tool_call.name}: {'Success' if result['success'] else 'Error'}")
+                        if not result['success']:
+                            self.logger.info(f"  Result: {result_preview}")
+
+                # Add tool results to conversation
+                messages.append({
+                    "role": "user",
+                    "content": tool_results
+                })
 
         return {
             "messages": messages,
@@ -1005,7 +1016,8 @@ class ImplementationAgent:
         self.logger.info(f"{Colors.BRIGHT_MAGENTA}[AI REQUEST]{Colors.END} Estimated input tokens: {input_tokens}")
 
         # Run the streaming conversation
-        result = self.run_streaming_conversation(self._system_prompt, messages)
+        with LoggingUtil.Span(f"Streaming conversation"):
+            result = self.run_streaming_conversation(self._system_prompt, messages)
 
         self.logger.info(f"{Colors.BRIGHT_GREEN}[IMPLEMENTATION]{Colors.END} Step implementation completed")
         self.logger.info(f"  Total input tokens: {input_tokens}")

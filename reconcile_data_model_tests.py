@@ -7,6 +7,7 @@ from typing import Any
 from colors import Colors
 from phase_manager import State, Phase, Context
 from with_step import with_step
+from utils.logging_util import LoggingUtil
 
 FIX_ISSUES_SYSTEM_PROMPT = """You are an expert Django developer with access to tools to analyze and fix code. Given a Django project with failing data model tests, use the available tools to:
 
@@ -271,67 +272,68 @@ Please use the tools to analyze the project structure, identify what's causing t
     updated_test_code = test_code
 
     for iteration in range(max_iterations):
-        logger.info(f"\n{Colors.BRIGHT_YELLOW}🔄 Starting fix iteration {iteration + 1}/{max_iterations}{Colors.END}")
+        with LoggingUtil.Span(f"Test fix iteration {iteration + 1}/{max_iterations}"):
+            logger.info(f"\n{Colors.BRIGHT_YELLOW}🔄 Starting fix iteration {iteration + 1}/{max_iterations}{Colors.END}")
 
-        try:
-            logger.info(f"   🧠 Calling Claude API with {len(messages)} messages...")
-            response = context.anthropic_client.create(
-                model="claude-3-7-sonnet-latest",
-                max_tokens=8192,
-                temperature=0,
-                system=FIX_ISSUES_SYSTEM_PROMPT,
-                messages=messages,
-                tools=tools
-            )
-            logger.info(f"   ✅ Received response from Claude")
+            try:
+                logger.info(f"   🧠 Calling Claude API with {len(messages)} messages...")
+                response = context.anthropic_client.create(
+                    model="claude-3-7-sonnet-latest",
+                    max_tokens=8192,
+                    temperature=0,
+                    system=FIX_ISSUES_SYSTEM_PROMPT,
+                    messages=messages,
+                    tools=tools
+                )
+                logger.info(f"   ✅ Received response from Claude")
 
-            # Add assistant's response to conversation
-            messages.append({"role": "assistant", "content": response.content})
+                # Add assistant's response to conversation
+                messages.append({"role": "assistant", "content": response.content})
 
-            # Process tool calls
-            if response.content and any(block.type == 'tool_use' for block in response.content):
-                tool_count = sum(1 for block in response.content if block.type == 'tool_use')
-                logger.info(f"\n{Colors.BRIGHT_MAGENTA}🤖 Claude is requesting {tool_count} tool call(s) on iteration {iteration + 1}{Colors.END}")
+                # Process tool calls
+                if response.content and any(block.type == 'tool_use' for block in response.content):
+                    tool_count = sum(1 for block in response.content if block.type == 'tool_use')
+                    logger.info(f"\n{Colors.BRIGHT_MAGENTA}🤖 Claude is requesting {tool_count} tool call(s) on iteration {iteration + 1}{Colors.END}")
 
-                tool_results = []
+                    tool_results = []
 
-                for i, block in enumerate(response.content):
-                    if block.type == 'tool_use':
-                        logger.info(f"\n{Colors.BRIGHT_CYAN}--- Tool Call {i + 1}/{tool_count} ---{Colors.END}")
-                        logger.info(f"Tool ID: {block.id}")
+                    for i, block in enumerate(response.content):
+                        if block.type == 'tool_use':
+                            logger.info(f"\n{Colors.BRIGHT_CYAN}--- Tool Call {i + 1}/{tool_count} ---{Colors.END}")
+                            logger.info(f"Tool ID: {block.id}")
 
-                        tool_result = execute_tool(block.name, block.input, project_path)
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": tool_result
-                        })
+                            tool_result = execute_tool(block.name, block.input, project_path)
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": block.id,
+                                "content": tool_result
+                            })
 
-                        # Check if test code was updated
-                        if block.name == "write_file" and block.input.get("file_path") == test_file_relative_path:
-                            updated_test_code = block.input.get("content", test_code)
-                            logger.info(f"   📝 Test code has been updated!")
+                            # Check if test code was updated
+                            if block.name == "write_file" and block.input.get("file_path") == test_file_relative_path:
+                                updated_test_code = block.input.get("content", test_code)
+                                logger.info(f"   📝 Test code has been updated!")
 
-                logger.info(f"\n{Colors.BRIGHT_MAGENTA}✅ Completed all {tool_count} tool call(s){Colors.END}")
+                    logger.info(f"\n{Colors.BRIGHT_MAGENTA}✅ Completed all {tool_count} tool call(s){Colors.END}")
 
-                # Add tool results to conversation
-                messages.append({"role": "user", "content": tool_results})
+                    # Add tool results to conversation
+                    messages.append({"role": "user", "content": tool_results})
 
-            else:
-                # No more tools needed, agent is done
-                final_message = "".join([block.text for block in response.content if block.type == 'text'])
-                logger.info(f"\n{Colors.BRIGHT_GREEN}🎯 Claude completed analysis without requesting more tools{Colors.END}")
-                logger.info(f"   Final message: {final_message[:100]}{'...' if len(final_message) > 100 else ''}")
-                return True, final_message, updated_test_code
+                else:
+                    # No more tools needed, agent is done
+                    final_message = "".join([block.text for block in response.content if block.type == 'text'])
+                    logger.info(f"\n{Colors.BRIGHT_GREEN}🎯 Claude completed analysis without requesting more tools{Colors.END}")
+                    logger.info(f"   Final message: {final_message[:100]}{'...' if len(final_message) > 100 else ''}")
+                    return True, final_message, updated_test_code
 
-        except Exception as e:
-            error_msg = f"Error during issue fixing: {str(e)}"
-            logger.info(f"\n{Colors.BRIGHT_RED}❌ Exception in iteration {iteration + 1}: {error_msg}{Colors.END}")
+            except Exception as e:
+                error_msg = f"Error during issue fixing: {str(e)}"
+                logger.info(f"\n{Colors.BRIGHT_RED}❌ Exception in iteration {iteration + 1}: {error_msg}{Colors.END}")
 
-            import traceback
-            traceback.print_exc()
+                import traceback
+                traceback.print_exc()
 
-            return False, error_msg, updated_test_code
+                return False, error_msg, updated_test_code
 
     logger.info(f"\n{Colors.BRIGHT_RED}⏰ Maximum iterations ({max_iterations}) reached while trying to fix issues{Colors.END}")
     return False, "Maximum iterations reached while trying to fix issues", updated_test_code
@@ -372,66 +374,68 @@ class ReconcileDataModelTests(Phase):
         with with_step("Running data model tests and fixing issues..."):
             while attempt < max_retries:
                 attempt += 1
-                self.logger.info(f"\n{Colors.BRIGHT_CYAN}Running data model tests (attempt {attempt}/{max_retries})...{Colors.END}")
+                with LoggingUtil.Span(f"Running data model tests (attempt {attempt}/{max_retries})"):
+                    # self.logger.info(f"\n{Colors.BRIGHT_CYAN}Running data model tests (attempt {attempt}/{max_retries})...{Colors.END}")
 
-                # Read the current test code from file to ensure we have the latest version
-                test_code = read_file(test_file_path)
+                    # Read the current test code from file to ensure we have the latest version
+                    test_code = read_file(test_file_path)
 
-                success, output = run_tests(test_file_path, project_path)
-                self.logger.info(f"Test execution result: {'SUCCESS' if success else 'FAILED'}")
+                    success, output = run_tests(test_file_path, project_path)
+                    self.logger.info(f"Test execution result: {'SUCCESS' if success else 'FAILED'}")
 
-                if success:
-                    self.logger.info(f"Test output:\n{output[:300]}{'...' if len(output) > 300 else ''}")
-                else:
-                    self.logger.info(f"{Colors.BRIGHT_RED}Full test failure output:{Colors.END}")
-                    self.logger.info(output)
-                    self.logger.info(f"{Colors.BRIGHT_RED}--- End of test failure output ---{Colors.END}")
-
-                # Add test result to message history
-                message_history.append({
-                    "role": "user",
-                    "content": f"Test attempt {attempt} result: {'SUCCESS' if success else 'FAILED'}\nOutput: {output[:500]}..."
-                })
-
-                if success:
-                    self.logger.info(f"{Colors.BRIGHT_GREEN}All tests passed! Verification complete.{Colors.END}")
-                    message_history.append({
-                        "role": "assistant",
-                        "content": "Tests passed successfully! The Django application has been verified and any issues have been resolved."
-                    })
-                    break
-                else:
-                    self.logger.info(f"{Colors.BRIGHT_RED}Tests failed on attempt {attempt}{Colors.END}")
-
-                    if attempt < max_retries:
-                        self.logger.info(f"\n{Colors.BRIGHT_YELLOW}Analyzing and fixing issues...{Colors.END}")
-
-                        fix_success, fix_message, updated_test_code = fix_issues(project_path, test_file_path, test_code, output, context, message_history)
-
-                        if fix_success:
-                            self.logger.info(f"{Colors.BRIGHT_GREEN}Successfully applied fixes{Colors.END}")
-                            self.logger.info(f"Fix details: {fix_message[:200]}...")
-
-                            # Add successful fix to message history
-                            message_history.append({
-                                "role": "assistant",
-                                "content": f"Successfully applied fixes: {fix_message}"
-                            })
-
-                            # Continue the loop to retest with the fixes
-                        else:
-                            self.logger.info(f"{Colors.BRIGHT_RED}Failed to fix issues: {fix_message}{Colors.END}")
-                            message_history.append({
-                                "role": "assistant",
-                                "content": f"Failed to fix issues: {fix_message}"
-                            })
-                            raise Exception(f"Failed to fix issues: {fix_message}")
+                    if success:
+                        self.logger.info(f"Test output:\n{output[:300]}{'...' if len(output) > 300 else ''}")
                     else:
-                        self.logger.info(f"{Colors.BRIGHT_RED}Maximum retries exceeded - unable to resolve all issues{Colors.END}")
+                        self.logger.info(f"{Colors.BRIGHT_RED}Full test failure output:{Colors.END}")
+                        self.logger.info(output)
+                        self.logger.info(f"{Colors.BRIGHT_RED}--- End of test failure output ---{Colors.END}")
+
+                    # Add test result to message history
+                    message_history.append({
+                        "role": "user",
+                        "content": f"Test attempt {attempt} result: {'SUCCESS' if success else 'FAILED'}\nOutput: {output[:500]}..."
+                    })
+
+                    if success:
+                        self.logger.info(f"{Colors.BRIGHT_GREEN}All tests passed! Verification complete.{Colors.END}")
                         message_history.append({
                             "role": "assistant",
-                            "content": "Reached maximum retry limit. Unable to resolve all issues automatically."
+                            "content": "Tests passed successfully! The Django application has been verified and any issues have been resolved."
                         })
-                        raise Exception("Maximum retries exceeded - unable to resolve all issues")
+                        break
+                    else:
+                        self.logger.info(f"{Colors.BRIGHT_RED}Tests failed on attempt {attempt}{Colors.END}")
+
+                        if attempt < max_retries:
+                            with LoggingUtil.Span(f"Analyzing and fixing issues"):
+                                self.logger.info(f"\n{Colors.BRIGHT_YELLOW}Analyzing and fixing issues...{Colors.END}")
+
+                                fix_success, fix_message, updated_test_code = fix_issues(project_path, test_file_path, test_code, output, context, message_history)
+
+                                if fix_success:
+                                    self.logger.info(f"{Colors.BRIGHT_GREEN}Successfully applied fixes{Colors.END}")
+                                    self.logger.info(f"Fix details: {fix_message[:200]}...")
+
+                                    # Add successful fix to message history
+                                    message_history.append({
+                                        "role": "assistant",
+                                        "content": f"Successfully applied fixes: {fix_message}"
+                                    })
+
+                                    # Continue the loop to retest with the fixes
+                                else:
+                                    self.logger.info(f"{Colors.BRIGHT_RED}Failed to fix issues: {fix_message}{Colors.END}")
+                                    message_history.append({
+                                        "role": "assistant",
+                                        "content": f"Failed to fix issues: {fix_message}"
+                                    })
+                                    raise Exception(f"Failed to fix issues: {fix_message}")
+                        else:
+                            self.logger.info(f"{Colors.BRIGHT_RED}Maximum retries exceeded - unable to resolve all issues{Colors.END}")
+                            message_history.append({
+                                "role": "assistant",
+                                "content": "Reached maximum retry limit. Unable to resolve all issues automatically."
+                            })
+                            raise Exception("Maximum retries exceeded - unable to resolve all issues")
 
         return {}

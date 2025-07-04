@@ -16,6 +16,7 @@ from git_helper import GitHelper
 from incremental_mode import IncrementalMode
 from llm_cache.anthropic_cached import CachedAnthropic
 from spec_processor import SpecProcessor
+from utils.logging_util import LoggingUtil
 
 class Context:
     def __init__(self, 
@@ -229,14 +230,14 @@ class PhaseManager:
                 
                 dry_run_suffix_if_any = " (dry run)" if self.context.dry_run else ""
 
-                self.logger.info(f"{Colors.BRIGHT_YELLOW}Running phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
-                
-                if self.context.dry_run and not self.current_phase.dry_run_aware:
-                    delta = { f"phase_{self.current_phase.id}": "dry-run" }
-                else:
-                    delta = phase.run(self.current_state, self.context)
+                with LoggingUtil.Span(f"Phase {self.current_phase.id}{dry_run_suffix_if_any}"):
+                    # self.logger.info(f"{Colors.BRIGHT_YELLOW}Running phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
+                    if self.context.dry_run and not self.current_phase.dry_run_aware:
+                        delta = {f"phase_{self.current_phase.id}": "dry-run"}
+                    else:
+                        delta = phase.run(self.current_state, self.context)
 
-                self.logger.info(f"{Colors.BRIGHT_GREEN}Finished phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
+                    self.logger.info(f"{Colors.BRIGHT_GREEN}Finished phase: {self.current_phase.id}{dry_run_suffix_if_any}{Colors.END}")
 
                 if not isinstance(delta, dict):
                     raise StateMachineError(f"Phase {self.current_phase.id} returned a non-dict object")

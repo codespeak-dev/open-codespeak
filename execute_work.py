@@ -4,6 +4,7 @@ from colors import Colors
 from phase_manager import State, Phase, Context
 from implementation_agent import ImplementationAgent
 import logging
+from utils.logging_util import LoggingUtil
 
 
 class ExecuteWork(Phase):
@@ -63,16 +64,17 @@ class ExecuteWork(Phase):
         # Process each step
         self.logger.info(f"\n{Colors.BRIGHT_YELLOW}[PROCESSING]{Colors.END} Processing steps with implementation agent:")
         for i, step in enumerate(steps):
-            self.logger.info(f"{Colors.BRIGHT_CYAN}=== Processing step {i+1}/{len(steps)} ==={Colors.END}")
-            self.logger.info(f"Content preview: {step[:100]}..." if len(step) > 100 else f"Content: {step}")
+            with LoggingUtil.Span(f"Processing step {i+1}/{len(steps)}"):
+                self.logger.info(f"{Colors.BRIGHT_CYAN}=== Processing step {i+1}/{len(steps)} ==={Colors.END}")
+                self.logger.info(f"Content preview: {step[:100]}..." if len(step) > 100 else f"Content: {step}")
 
-            # Implement the step
-            result = agent.implement_step(step)
-            step_api_duration = result.get('total_api_duration', 0)
-            total_api_duration += step_api_duration
+                # Implement the step
+                result = agent.implement_step(step)
+                step_api_duration = result.get('total_api_duration', 0)
+                total_api_duration += step_api_duration
 
-            self.logger.info(f"{Colors.BRIGHT_GREEN}[PROCESSING]{Colors.END} Step {i+1} processing completed")
-            self.logger.info("")
+                self.logger.info(f"{Colors.BRIGHT_GREEN}[PROCESSING]{Colors.END} Step {i+1} processing completed")
+                self.logger.info("")
 
         # Format duration for display
         minutes = int(total_api_duration // 60)

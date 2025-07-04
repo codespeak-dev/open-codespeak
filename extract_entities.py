@@ -144,13 +144,14 @@ def extract_models_and_fields(spec: str, context: Context, existing_entities=Non
 
 def display_entities(entities: list[Entity], logger):
     """Display entities in a formatted way"""
-    logger.info("Entities extracted:")
+    lines = []
     for entity in entities:
-        logger.info(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
+        lines.append(f"  - {Colors.BOLD}{Colors.BRIGHT_GREEN}{entity.name}{Colors.END}")
         for rel in entity.relationships:
-            logger.info(f"      {Colors.BRIGHT_MAGENTA}{rel.name}{Colors.END}: {rel.type} -> {Colors.BRIGHT_GREEN}{rel.related_to}{Colors.END}")
+            lines.append(f"      {Colors.BRIGHT_MAGENTA}{rel.name}{Colors.END}: {rel.type} -> {Colors.BRIGHT_GREEN}{rel.related_to}{Colors.END}")
         for field in entity.fields:
-            logger.info(f"      {Colors.BRIGHT_YELLOW}{field.name}{Colors.END}: {field.type}")
+            lines.append(f"      {Colors.BRIGHT_YELLOW}{field.name}{Colors.END}: {field.type}")
+    logger.info(f"Entities extracted: " + "\n".join(lines))
 
 class ExtractEntities(Phase):
     def __init__(self):

@@ -104,7 +104,7 @@ class LoggingUtil:
 
         # for unnamed spans, just increase indent
         if name:
-            logging.getLogger(LoggingUtil.__class__.__qualname__).info(f"Starting span: {name}")
+            logging.getLogger(LoggingUtil.__class__.__qualname__).info(f"{name}")
         new_depth = LoggingUtil._find_indenter().indent_increase()
 
         logging.getLogger(LoggingUtil.__class__.__qualname__).debug(
