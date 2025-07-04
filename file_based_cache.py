@@ -218,20 +218,26 @@ class CacheMetadata:
         self.run_id = run_id
         
     def __getitem__(self, key: str) -> Any:
-        return json.loads(self.file_name.read_text()).get(self.run_id, {}).get(key)
+        return self.load().get(self.run_id, {}).get(key)
+
+    def load(self):
+        return json.loads(self.file_name.read_text())
 
     def __setitem__(self, key: str, value: Any):
-        data = json.loads(self.file_name.read_text())
+        data = self.load()
         data[self.run_id] = data.get(self.run_id, {})
         data[self.run_id][key] = value
-        self.file_name.write_text(json.dumps(data, indent=2))
+        self.save(data)
 
     def append(self, key: str, value: Any):
-        data = json.loads(self.file_name.read_text())
+        data = self.load()
         data[self.run_id] = data.get(self.run_id, {})
         data[self.run_id][key] = data[self.run_id].get(key, [])
         data[self.run_id][key].append(value)
-        self.file_name.write_text(json.dumps(data, indent=2))
+        self.save(data)
+
+    def save(self, data):
+        self.file_name.write_text(json.dumps(data, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
