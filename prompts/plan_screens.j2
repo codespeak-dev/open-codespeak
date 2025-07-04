@@ -1,0 +1,37 @@
+{% if incremental %}
+You need to update user stories based on changes in the spec and data model. Each story may have screens.
+
+<old_spec>{{ old_spec }}</old_spec>
+<new_spec>{{ new_spec }}</new_spec>
+<old_stories>{{ old_stories }}</old_stories>
+<old_models>{{ old_models }}</old_models>
+<new_models>{{ new_models }}</new_models>
+{% else %}
+You need to define user stories based on the provided spec and data model. Each story may have screens.
+
+<spec>{{ spec }}</spec>
+<models>{{ models }}</models>
+{% endif %}
+
+Here's an example of few user stories for a blog:
+
+<group name="...">
+<story name="Post to blog">
+<description>As a user, I am able to ...</description>
+<screen name="Create post page" urlPattern="/post/new">
+<frame>
+<description>Provides a form to enter post details</description>
+<action name="Create post"/>
+</frame>
+</screen>
+</story>
+<story name="See all posts">
+<description>As a visitor, I am able to...</description>
+<screen name="Post index" urlPattern="/post">
+<frame>
+<description>List of all posts</description>
+</frame>
+</story>
+</group>
+
+IMPORTANT: do not output anything except <group> and <story> sections 
