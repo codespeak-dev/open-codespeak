@@ -63,30 +63,22 @@ class GenerateModels(Phase):
         project_path = state["project_path"]
         spec_diff = state.get("spec_diff")
 
-        def get_old_revision_blob(file_path: str):
-            raise Exception("Incrementally generating models is not supported yet")
-
-            return context.git_helper.git_file_content_for_revision(
-                file_path=file_path,
-                revision_sha="948073984371d9f2a48c26c792da88fdecb0b50d"
-            )
-
         if spec_diff:
             old_models_path: str = os.path.join(project_path, "web/models.py")
             with open(old_models_path, "r") as f:
                 old_models = f.read()
 
-            old_entities_blob: str = get_old_revision_blob("entities.json")
+            old_entities_blob: str = context.get_old_revision_blob("entities.json")
             old_entities = json.loads(old_entities_blob)
             new_entities = state["entities"]
 
             generate_models_with_llm(context.anthropic_client, project_path, old_models, old_entities, new_entities)
             return {}
 
-        # else:
-        project_name = state["project_name"]
-        entities: list[Entity] = state["entities"]
-        self.logger.info(f"Generating Django models in {project_path}")
+        else:
+            project_name = state["project_name"]
+            entities: list[Entity] = state["entities"]
+            self.logger.info(f"Generating Django models in {project_path}")
 
-        generate_models_from_template(project_path, project_name, to_entities(entities), "web")
+        generate_models_from_template(project_path, project_name, entities, "web")
         return {}

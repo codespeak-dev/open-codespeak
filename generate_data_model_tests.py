@@ -35,23 +35,15 @@ class GenerateDataModelTests(Phase):
         project_path = state["project_path"]
         spec_diff = state.get("spec_diff")
 
-        def get_old_revision_blob(file_path: str):
-            raise Exception("Incrementally generating data model tests is not supported yet")
-
-            return context.git_helper.git_file_content_for_revision(
-                file_path=file_path,
-                revision_sha="948073984371d9f2a48c26c792da88fdecb0b50d"
-            )
-
         if spec_diff:
-            old_models: str = get_old_revision_blob("web/models.py")
+            old_models: str = context.get_old_revision_blob("web/models.py")
             new_models: str = read_models_file(project_path)
-            old_entities_blob: str = get_old_revision_blob("entities.json")
+            old_entities_blob: str = context.get_old_revision_blob("entities.json")
             old_entities = json.loads(old_entities_blob)
             new_entities = state["entities"]
 
             try:
-                old_tests: str = get_old_revision_blob("web/test_data_model.py")
+                old_tests: str = context.get_old_revision_blob("web/test_data_model.py")
             except:
                 old_tests = ""
 
