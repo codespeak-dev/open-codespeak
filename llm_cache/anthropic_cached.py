@@ -83,8 +83,9 @@ class CachedAnthropic:
         
     def create(self, **kwargs) -> Message:
         cache_key = self.cache.key_for_callable(self.client.messages.create, **kwargs)
-        if self.cache.get(cache_key) is not None:
-            return self.cache.get(cache_key)
+        cached_response = self.cache.get(cache_key)
+        if cached_response is not None:
+            return cached_response
         else:
             self.report_cache_miss(cache_key, f"create {kwargs.get('system', '<no system prompt>')[:100]}")
             result = self.client.messages.create(**kwargs)
@@ -97,8 +98,9 @@ class CachedAnthropic:
 
     async def async_create(self, **kwargs) -> Message:
         cache_key = self.cache.key_for_callable(self.async_client.messages.create, **kwargs)
-        if self.cache.get(cache_key) is not None:
-            return self.cache.get(cache_key)
+        cached_response = self.cache.get(cache_key)
+        if cached_response is not None:
+            return cached_response
         else:
             self.report_cache_miss(cache_key, f"async_create {kwargs.get('system', '<no system prompt>')[:100]}")
             result = await self.async_client.messages.create(**kwargs)
@@ -109,7 +111,6 @@ class CachedAnthropic:
     def text_stream(self, **kwargs) -> Iterator[str]:
         cache_key = self.cache.key_for_callable(self.client.messages.stream, **kwargs)
         cached_response = self.cache.get(cache_key)
-        
         if cached_response is not None:
             def cached_iterator():
                 for text in cached_response:
