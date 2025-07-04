@@ -1,8 +1,9 @@
 import logging
-from typing import List, Dict, Optional, Any, Protocol
 from pydantic import BaseModel
-from anthropic.types import ToolParam
 from llm_cache.anthropic_cached import CachedAnthropic
+from tool_definitions import (
+    Tool, string_param, array_param, object_param, to_anthropic
+)
 
 class EntityField(BaseModel):
     name: str
@@ -26,75 +27,52 @@ def to_entities(raw_data: list[dict]) -> list[Entity]:
     return [Entity(**item) for item in raw_data]
 
 
-ENTITY_TOOLS_SCHEMA: list[ToolParam] = [
-    ToolParam(
-        name="entities",
-        description="Extract Django models and their fields from the specification",
-        input_schema={
-            "type": "object",
-            "properties": {
-                "entities": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "description": "The Django model name"
-                            },
-                            "fields": {
-                                "type": "array",
-                                "description": "Array of field objects with name and type",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "type": "string",
-                                            "description": "Field name"
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "description": "Django field type, e.g. 'CharField(max_length=100)'"
-                                        }
-                                    },
-                                    "required": ["name", "type"]
-                                }
-                            },
-                            "relationships": {
-                                "type": "array",
-                                "description": "Array of relationship objects",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "type": "string",
-                                            "description": "Relationship field name"
-                                        },
-                                        "type": {
-                                            "type": "string",
-                                            "description": "Relationship type like 'ForeignKey', 'ManyToManyField', 'OneToOneField'"
-                                        },
-                                        "related_to": {
-                                            "type": "string",
-                                            "description": "The related model name, e.g. 'User' for author field"
-                                        },
-                                        "related_name": {
-                                            "type": "string",
-                                            "description": "The related name for reverse lookups, e.g. 'posts' for author->posts relationship"
-                                        }
-                                    },
-                                    "required": ["name", "type", "related_to", "related_name"]
-                                }
+ENTITY_EXTRACTION_TOOL = Tool(
+    name="entities",
+    description="Extract Django models and their fields from the specification",
+    parameters=[
+        array_param(
+            name="entities",
+            description="Array of Django models with their fields and relationships",
+            required=True,
+            items=object_param(
+                name="entity",
+                description="Django model definition",
+                properties={
+                    "name": string_param("name", "The Django model name", required=True),
+                    "fields": array_param(
+                        name="fields",
+                        description="Array of field objects with name and type",
+                        required=True,
+                        items=object_param(
+                            name="field",
+                            description="Django field definition",
+                            properties={
+                                "name": string_param("name", "Field name", required=True),
+                                "type": string_param("type", "Django field type, e.g. 'CharField(max_length=100)'", required=True)
                             }
-                        },
-                        "required": ["name", "fields"]
-                    }
+                        )
+                    ),
+                    "relationships": array_param(
+                        name="relationships",
+                        description="Array of relationship objects",
+                        required=False,
+                        items=object_param(
+                            name="relationship",
+                            description="Django relationship definition",
+                            properties={
+                                "name": string_param("name", "Relationship field name", required=True),
+                                "type": string_param("type", "Relationship type like 'ForeignKey', 'ManyToManyField', 'OneToOneField'", required=True),
+                                "related_to": string_param("related_to", "The related model name, e.g. 'User' for author field", required=True),
+                                "related_name": string_param("related_name", "The related name for reverse lookups, e.g. 'posts' for author->posts relationship", required=True)
+                            }
+                        )
+                    )
                 }
-            },
-            "required": ["entities"]
-        }
-    )
-]
+            )
+        )
+    ]
+)
 
 
 class EntityExtractor:
@@ -109,7 +87,7 @@ class EntityExtractor:
             model=self.model,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
-            tools=ENTITY_TOOLS_SCHEMA,
+            tools=[to_anthropic(ENTITY_EXTRACTION_TOOL)],
             max_tokens=10000,
             temperature=1
         )
