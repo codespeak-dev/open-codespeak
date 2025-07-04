@@ -2,7 +2,7 @@ import logging
 from colors import Colors
 from data_serializer import json_file
 from phase_manager import State, Phase, Context
-from with_step import with_streaming_step
+from with_step import with_step
 from pydantic import BaseModel
 from anthropic.types import ToolParam
 from fileutils import format_file_content, load_template as load_template_jinja
@@ -103,13 +103,12 @@ def extract_models_and_fields(spec: str, context: Context, existing_entities=Non
     Returns a list of Entity objects with fields and relationships.
     """
 
-    with with_streaming_step("Figuring out the data model...") as (input_tokens, output_tokens):
+    with with_step("Figuring out the data model..."):
         system_prompt = "You are an expert Django developer and an excellent data modeler."
 
         # Adds line numbers to the spec, to make it easier to understand the diff
         spec, _ = format_file_content(spec, offset=None, limit=None, truncate_line=None)
         user_prompt = load_template_jinja("prompts/extract_entities.j2", existing_entities=existing_entities, spec_diff=spec_diff, spec=spec)
-        input_tokens[0] = len((system_prompt + user_prompt).split())
 
         message = context.anthropic_client.create(
             model="claude-3-7-sonnet-latest",
@@ -123,12 +122,6 @@ def extract_models_and_fields(spec: str, context: Context, existing_entities=Non
             },
             tools=ENTITY_TOOLS_SCHEMA
         )
-
-        # Calculate output tokens
-        if hasattr(message, 'content'):
-            for content_block in message.content:
-                if hasattr(content_block, 'type') and content_block.type == 'text':
-                    output_tokens[0] += len(content_block.text.split())
 
         # Extract entities from tool use
         entities_data = []

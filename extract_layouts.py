@@ -4,7 +4,7 @@ from anthropic.types import ToolParam
 from colors import Colors
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
-from with_step import with_streaming_step
+from with_step import with_step
 
 PLAN_LAYOUTS_SYSTEM_PROMPT = """
 You are a senior web developer who specialized in Django.
@@ -58,10 +58,8 @@ LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
 
 def extract_layouts_with_claude(stories: str, spec: str, context: Context) -> list[dict]:
 
-    with with_streaming_step("Planning layouts...") as (input_tokens, output_tokens):
+    with with_step("Planning layouts..."):
         content = f"<spec>\n{spec}\n</spec>\n<stories>\n{stories}\n</stories>"
-        
-        input_tokens[0] = len(content.split()) + len(PLAN_LAYOUTS_SYSTEM_PROMPT.split())
 
         message = context.anthropic_client.create(
             model="claude-3-7-sonnet-latest",
@@ -80,13 +78,7 @@ def extract_layouts_with_claude(stories: str, spec: str, context: Context) -> li
             },
             tools=LAYOUT_TOOLS_SCHEMA
         )
-        
-        # Calculate output tokens
-        if hasattr(message, 'content'):
-            for content_block in message.content:
-                if hasattr(content_block, 'type') and content_block.type == 'text':
-                    output_tokens[0] += len(content_block.text.split())
-        
+
         # Extract layouts from tool use
         layouts_data = []
         if hasattr(message, 'content'):
