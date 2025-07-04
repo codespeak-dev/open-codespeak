@@ -113,14 +113,6 @@ def main():
         return
     
     key_sanitizer = SubstringBasedSanitizer([
-        (os.path.abspath(project_path), "$ABSOLUTE_PROJECT_PATH$"),
-        (project_path, "$PROJECT_PATH$"),
-        (os.path.basename(project_path), "$PROJECT_NAME$"),
-        (os.path.expanduser("~"), "$HOME_DIR$"),
-        (os.path.expanduser("."), "$CURRENT_DIR$"),
-    ])
-
-    key_sanitizer = SubstringBasedSanitizer([
         (os.path.abspath(project_path), "[ABSOLUTE_PROJECT_PATH]"),
         (project_path, "[PROJECT_PATH]"),
         (os.path.basename(project_path), "[PROJECT_NAME]"),

@@ -59,7 +59,9 @@ class Serializer:
     def deserialize_with_pydantic(self, obj: Any) -> Any:
         if isinstance(obj, dict):
             if "__pydantic_model_module" in obj:
-                return self.get_pydantic_class(obj).model_validate(obj["model_dump"])
+                return self.get_pydantic_class(obj).model_validate(
+                    self.deserialize_with_pydantic(obj["model_dump"])
+                )
             else:
                 return {
                     self.deserialize_with_pydantic(k): self.deserialize_with_pydantic(v) 
