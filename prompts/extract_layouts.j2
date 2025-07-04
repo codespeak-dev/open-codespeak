@@ -26,5 +26,8 @@ You need to extract layouts based on the provided spec and stories.
 
 As input you have a specification and list of user stories and screens that need to be implemented in an app.
 Return a list of layouts that will be used to implement the app.
-These layouts will be used as Django templates.
+
+These layouts will be used by the actual page templates in Django via `{{ '{% extends \'layouts/<name>.html\' %}' }}`. The goal is to have a few shared layouts for the app.
+
+
 Think through whether one layout is enough or this app needs multiple layout templates that are different from each other. 
