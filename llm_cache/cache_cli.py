@@ -119,14 +119,18 @@ def get_shape(obj: Any) -> Any:
 def find_key_file(cache_dir, hash):
     cache_file = cache_dir / f"{hash}.src.json"
     if cache_file.exists():
-        obj = json.loads(cache_file.read_text())
+        return json.loads(cache_file.read_text())
     else:
         cache_file = cache_dir / f"{hash}.src.txt"
         if cache_file.exists():
-            obj = cache_file.read_text()
-        else:
-            raise ValueError(f"No cache key file found for hash: {hash}")
-    return obj
+            return cache_file.read_text()
+        
+    # find a ".src.*" file with the name starting with the hash (the actual filename is longer)
+    for file in cache_dir.iterdir():
+        if file.is_file() and file.name.startswith(hash):
+            return find_key_file(cache_dir, file.name.split(".")[0])
+
+    raise ValueError(f"No cache key file found for hash: {hash}")
 
 
 def near_misses(cache_dir: Path, subj_hash: str):    
