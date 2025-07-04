@@ -32,11 +32,11 @@ class PlanWork(Phase):
     def run(self, state: State, context: Context) -> dict:
         stories = state["stories"]
         spec_diff = state.get("spec_diff")
-        old_stories = context.get_old_revision_blob("stories.txt")
 
         if spec_diff:
+            old_stories = context.get_old_revision_blob("stories.txt")
             user_prompt = load_prompt_template("plan_work",
-                                             old_stories=old_stories, spec_diff=spec_diff,
+                                             old_stories=old_stories,
                                              new_stories=stories, old_work=state["work"])
         else:
             user_prompt = load_prompt_template("plan_work", stories=stories)
