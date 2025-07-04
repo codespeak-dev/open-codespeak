@@ -1,13 +1,8 @@
-"""
-- find files in the cache directory that contain a given substring
-- extract hashes from their names (the part before first dot)
-- delete all files in the cache dir whose names start with any of the hashes
-"""
-
-import os
+import json
 import sys
 from pathlib import Path
 import argparse
+from typing import Any
 
 
 def find_files_with_substring(cache_dir: Path, substring: str) -> list[str]:
@@ -104,15 +99,83 @@ def clean_cache(cache_dir: Path, substring: str, dry_run: bool = False) -> int:
     return deleted_count
 
 
+def get_shape(obj: Any) -> Any:
+    if isinstance(obj, dict):
+        return {k: get_shape(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [get_shape(item) for item in obj]
+    elif isinstance(obj, str):
+        return ""
+    elif isinstance(obj, int):
+        return 0
+    elif isinstance(obj, float):
+        return 0.0
+    elif isinstance(obj, bool):
+        return False
+    else:
+        return None
+
+
+def find_key_file(cache_dir, hash):
+    cache_file = cache_dir / f"{hash}.src.json"
+    if cache_file.exists():
+        obj = json.loads(cache_file.read_text())
+    else:
+        cache_file = cache_dir / f"{hash}.src.txt"
+        if cache_file.exists():
+            obj = cache_file.read_text()
+        else:
+            raise ValueError(f"No cache key file found for hash: {hash}")
+    return obj
+
+
+def near_misses(cache_dir: Path, subj_hash: str):    
+    obj = find_key_file(cache_dir, subj_hash)
+    subj_shape = get_shape(obj)
+    subj_shape_str = json.dumps(subj_shape)
+    
+    print(f"Searching for similar files to {subj_hash} in {cache_dir}")
+    near_misses = []
+
+    for file in cache_dir.iterdir():
+        if file.is_file():
+            if file.name.startswith(subj_hash):
+                continue
+            if not file.name.endswith(".src.json"):
+                continue
+            
+            obj = json.loads(file.read_text())
+            shape = get_shape(obj)
+            if json.dumps(shape) == subj_shape_str:
+                near_misses.append(file.name)
+    
+    for near_miss in near_misses:
+        print(near_miss)
+    print(f"Found {len(near_misses)} near miss(es)")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Clean cache files containing a substring")
-    parser.add_argument("cache_dir", help="Path to cache directory")
-    parser.add_argument("substring", help="Substring to search for in files")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without actually deleting")
+    parser = argparse.ArgumentParser(description="Cache management CLI")
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Delete command
+    delete_parser = subparsers.add_parser('delete', help='Delete cache files containing a substring')
+    delete_parser.add_argument("substring", help="Substring to search for in files")
+    delete_parser.add_argument("--cache-dir", default="test_outputs/.llm_cache", help="Path to cache directory (default: test_outputs/.llm_cache)")
+    delete_parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without actually deleting")
+    
+    # Near miss command
+    near_miss_parser = subparsers.add_parser('near_miss', help='Find cache entries with similar structure to a given hash')
+    near_miss_parser.add_argument("hash", help="Hash to search for near misses")
+    near_miss_parser.add_argument("--cache-dir", default="test_outputs/.llm_cache", help="Path to cache directory (default: test_outputs/.llm_cache)")
     
     args = parser.parse_args()
     
-    cache_dir = Path(args.cache_dir)
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+    
+    cache_dir = Path(args.cache_dir or "test_outputs/.llm_cache")
     
     if not cache_dir.exists():
         print(f"Error: Cache directory does not exist: {cache_dir}")
@@ -121,10 +184,14 @@ def main():
     if not cache_dir.is_dir():
         print(f"Error: Path is not a directory: {cache_dir}")
         sys.exit(1)
-    
+
     try:
-        deleted_count = clean_cache(cache_dir, args.substring, args.dry_run)
-        sys.exit(0)
+        if args.command == 'delete':
+            deleted_count = clean_cache(cache_dir, args.substring, args.dry_run)
+            sys.exit(0)
+        elif args.command == 'near_miss':
+            near_misses(cache_dir, args.hash)
+            sys.exit(0)
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)
