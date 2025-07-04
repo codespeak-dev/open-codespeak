@@ -1,0 +1,49 @@
+{% if spec_diff %}
+You are given a list of old user stories and a list of new user stories and a previous work plan.
+You need to suggest a new work plan based on the fact that the old work plan for old user stories is already implemented.
+You will also need to order the steps in the new work plan based on the dependencies between the steps.
+
+<old_user_stories>
+{{ old_stories }}
+</old_user_stories>
+
+<new_user_stories>
+{{ new_stories }}
+</new_user_stories>
+
+<old_work_plan>
+{{ old_work }}
+</old_work_plan>
+{% else %}
+You need to plan work based on the provided stories.
+
+<stories>
+{{ stories }}
+</stories>
+
+You have a list of user stories and screens that need to be implemented in an app.
+You need to order them as steps, starting from those that need to be implemented first and finishing with those that have more dependencies.
+{% endif %}
+
+Note that models and migrations are already implemented.
+
+Example of output:
+
+<step>
+<overall_goal>
+    <!-- A single, concise sentence describing the user's high-level objective. -->
+</overall_goal>
+
+<key_knowledge>
+    <!-- Crucial facts, conventions, and constraints the agent must remember based on the conversation history and interaction with the user. Use bullet points. -->
+</key_knowledge>
+
+<current_plan>
+    <!-- The agent's step-by-step plan. Mark completed steps. -->
+</current_plan>
+</step>
+<step>
+...
+</step>
+
+The output will be parsed by XML parser. It must be valid XML. 

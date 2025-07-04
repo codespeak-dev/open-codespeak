@@ -35,11 +35,11 @@ class Context:
 
     # TODO(dsavvinov): remove the mock
     def get_old_revision_blob(self, file_path: str):
-        # raise Exception("Incrementally generating screens is not supported yet")
+        raise Exception("Incrementally generating screens is not supported yet")
 
         return self.git_helper.git_file_content_for_revision(
             file_path=file_path,
-            revision_sha="e10028ff9e7b19df3ffec70799690eb9668b3510"
+            revision_sha="db9859461d75176a6e65ad58a16cee85408cbccb"
         )
 
 class State:
