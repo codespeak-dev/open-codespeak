@@ -1,20 +1,15 @@
 import json
 import logging
+from typing import Optional
 from anthropic.types import ToolParam
 from colors import Colors
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
 from with_step import with_step
+from fileutils import load_prompt_template, format_file_content
 
-PLAN_LAYOUTS_SYSTEM_PROMPT = """
-You are a senior web developer who specialized in Django.
-As input you have a specification and list of user stories and screens that need to be implemented in an app.
-Return a list of layouts that will be used to implement the app.
-These layouts will be used as Django templates.
-Think through whether one layout is enough or this app needs multiple layout templates that are different from each other.
-"""
+SYSTEM_PROMPT = "You are a senior web developer who specialized in Django."
 
-# Tool definitions constant
 LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
     ToolParam(
         name="layouts",
@@ -56,20 +51,27 @@ LAYOUT_TOOLS_SCHEMA: list[ToolParam] = [
     )
 ]
 
-def extract_layouts_with_claude(stories: str, spec: str, context: Context) -> list[dict]:
+def extract_layouts(context: Context, spec: str, stories: str, 
+                   spec_diff: Optional[str] = None, old_layouts: Optional[list[dict]] = None) -> list[dict]:
 
     with with_step("Planning layouts..."):
-        content = f"<spec>\n{spec}\n</spec>\n<stories>\n{stories}\n</stories>"
+        if spec_diff:
+            user_prompt = load_prompt_template("extract_layouts",
+                                             spec=spec, spec_diff=spec_diff,
+                                             stories=stories, old_layouts=old_layouts)
+        else:
+            user_prompt = load_prompt_template("extract_layouts",
+                                             spec=spec, stories=stories)
 
         message = context.anthropic_client.create(
             model="claude-3-7-sonnet-latest",
             max_tokens=8192,
             temperature=1,
-            system=PLAN_LAYOUTS_SYSTEM_PROMPT,
+            system=SYSTEM_PROMPT,
             messages=[
                 {
                     "role": "user",
-                    "content": content
+                    "content": user_prompt
                 }
             ],
             thinking={
@@ -79,7 +81,6 @@ def extract_layouts_with_claude(stories: str, spec: str, context: Context) -> li
             tools=LAYOUT_TOOLS_SCHEMA
         )
 
-        # Extract layouts from tool use
         layouts_data = []
         if hasattr(message, 'content'):
             for content_block in message.content:
@@ -97,13 +98,26 @@ class ExtractLayouts(Phase):
         self.logger = logging.getLogger(__class__.__qualname__)
 
     def run(self, state: State, context: Context) -> dict:
-        stories = state.get("stories", "")
+        spec_diff = state.get("spec_diff")
         spec = state["spec"]
-        verbose = context.verbose if context else False
+        
+        stories = state.get("stories")
+        if not stories:
+            raise ValueError("No stories found")
 
-        layouts = extract_layouts_with_claude(stories, spec, context)
+        if spec_diff:
+            old_layouts = state.get("layouts")
+            if not old_layouts:
+                raise ValueError("No layouts found")
+            
+            spec, _ = format_file_content(spec, offset=None, limit=None, truncate_line=None)
+            
+            layouts = extract_layouts(context, spec=spec, stories=stories,
+                                    spec_diff=spec_diff, old_layouts=old_layouts)
+        else:
+            layouts = extract_layouts(context, spec=spec, stories=stories)
 
-        if verbose:
+        if context.verbose:
             self.logger.info(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Planned Layouts:{Colors.END}")
             self.logger.info(json.dumps(layouts, indent=2))
         else:

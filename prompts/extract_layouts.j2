@@ -1,0 +1,30 @@
+{% if spec_diff %}
+You need to extract updated layouts based on changes in the spec and stories.
+
+<spec>
+{{ spec }}
+</spec>
+<spec_diff>
+{{ spec_diff }}
+</spec_diff>
+<stories>
+{{ stories }}
+</stories>
+<old_layouts>
+{{ old_layouts | tojson(indent=2) }}
+</old_layouts>
+{% else %}
+You need to extract layouts based on the provided spec and stories.
+
+<spec>
+{{ spec }}
+</spec>
+<stories>
+{{ stories }}
+</stories>
+{% endif %}
+
+As input you have a specification and list of user stories and screens that need to be implemented in an app.
+Return a list of layouts that will be used to implement the app.
+These layouts will be used as Django templates.
+Think through whether one layout is enough or this app needs multiple layout templates that are different from each other. 
