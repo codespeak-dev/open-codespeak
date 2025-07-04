@@ -37,7 +37,7 @@ def display_entities(entities: list[Entity], logger):
             lines.append(f"      {Colors.BRIGHT_MAGENTA}{rel.name}{Colors.END}: {rel.type} -> {Colors.BRIGHT_GREEN}{rel.related_to}{Colors.END}")
         for field in entity.fields:
             lines.append(f"      {Colors.BRIGHT_YELLOW}{field.name}{Colors.END}: {field.type}")
-    logger.info(f"Entities extracted: " + "\n".join(lines))
+    logger.info(f"Entities extracted:\n" + "\n".join(lines))
 
 class ExtractEntities(Phase):
     def __init__(self):
