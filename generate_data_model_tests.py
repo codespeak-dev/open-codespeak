@@ -1,24 +1,33 @@
 import os
 import logging
+from typing import cast
+from anthropic.types import ToolParam
 from colors import Colors
 from phase_manager import State, Phase, Context
-from with_step import with_streaming_step
+from with_step import with_step
+from fileutils import load_template as load_template_jinja
 
 
-DATA_MODEL_TESTS_SYSTEM_PROMPT = """You are an expert Django developer. Given Django models.py content, generate a proper Django TestCase class that tests the Django models and their relationships. The test should:
-1. Import from django.test import TestCase
-2. Import the models from web.models
-3. Import any other necessary Django modules (like datetime, uuid, etc.)
-4. Inherit from django.test.TestCase (NOT unittest.TestCase)
-5. Test model creation, relationships, and database integrity
-6. Use self.assert* methods (like self.assertEqual, self.assertTrue, etc.)
-7. Include proper test method names starting with 'test_'
-8. Test foreign key relationships, cascade deletions, and unique constraints
-9. Focus on testing the Django ORM and model layer, not API endpoints
-10. Include a setUp method to create test data
-11. Use from django.utils import timezone and timezone.now() instead of datetime.now() for datetime fields
-Generate comprehensive tests that verify the models work correctly with the Django ORM.
-IMPORTANT: Your response should be composed of only Python code with the complete Django TestCase class, no explanation or NO markdown formatting."""
+TOOLS_DEFINITIONS: list[ToolParam] = [
+    ToolParam(
+        name="write_file",
+        description="Write content to a new file",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file to create"
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Content to write to the file"
+                }
+            },
+            "required": ["file_path", "content"]
+        }
+    )
+]
 
 
 def read_models_file(project_path: str) -> str:
@@ -29,18 +38,6 @@ def read_models_file(project_path: str) -> str:
 
     with open(models_path, 'r') as f:
         return f.read()
-
-
-
-
-def save_test_to_project(test_code: str, project_path: str) -> str:
-    """Save the generated test code to the Django project's test directory"""
-    test_file_path = os.path.join(project_path, "web", "test_data_model.py")
-
-    with open(test_file_path, 'w') as f:
-        f.write(test_code)
-
-    return test_file_path
 
 
 class GenerateDataModelTests(Phase):
@@ -60,32 +57,44 @@ class GenerateDataModelTests(Phase):
 
         models_content = read_models_file(project_path)
 
-        test_code = self.generate_data_model_tests(models_content, context)
-        test_file_path = save_test_to_project(test_code, project_path)
+        test_file_path = self.generate_data_model_tests(context, models_content, project_path)
 
         return {
             "data_model_test_path": test_file_path
         }
 
-    def generate_data_model_tests(self, models_content: str, context: Context) -> str:
+    def generate_data_model_tests(self, context: Context, models_content: str, project_path: str) -> str:
         """Use Claude to generate data model tests based on models.py"""
 
-        with with_streaming_step("Generating data model tests with Claude...") as (input_tokens, output_tokens):
-            response_text = ""
-            # Count input tokens from system prompt and models content
-            input_tokens[0] = len((DATA_MODEL_TESTS_SYSTEM_PROMPT + models_content).split())
+        system_prompt = "You are an expert Django developer."
+        user_prompt = load_template_jinja("prompts/generate_data_model_tests.j2", models_content=models_content)
 
-            with context.anthropic_client.stream(
-                    model="claude-3-7-sonnet-latest",
-                    max_tokens=8192,
-                    temperature=0,
-                    system=DATA_MODEL_TESTS_SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": models_content}]
-            ) as stream:
-                for text in stream.text_stream:
-                    response_text += text
-                    output_tokens[0] += len(text.split())
+        with with_step("Generating data model tests..."):
+            message = context.anthropic_client.create(
+                model="claude-3-7-sonnet-latest",
+                max_tokens=8192,
+                temperature=0,
+                system=system_prompt,
+                tools=TOOLS_DEFINITIONS,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
 
-        self.logger.info(f"Response text: {response_text}")
-        return response_text.strip()
+            tool_calls = [block for block in message.content if hasattr(block, 'type') and block.type == "tool_use"]
+            if len(tool_calls) > 1:
+                raise ValueError("Only one tool call is allowed, got: " + str(tool_calls))
+
+            test_file_path = os.path.join(project_path, "web", "test_data_model.py")
+
+            for tool_call in tool_calls:
+                if tool_call.name == "write_file":
+                    tool_input = cast(dict, tool_call.input)
+                    if tool_input["file_path"] == "web/test_data_model.py":
+                        with open(test_file_path, "w", encoding="utf-8") as f:
+                            f.write(tool_input["content"])
+                    else:
+                        raise ValueError(f"Only writing to web/test_data_model.py is supported, got: {tool_input['file_path']}")
+                else:
+                    raise ValueError(f"Unknown tool: {tool_call.name}")
+
+            return test_file_path
 
