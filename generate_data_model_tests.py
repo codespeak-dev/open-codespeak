@@ -47,16 +47,18 @@ class GenerateDataModelTests(Phase):
             except:
                 old_tests = ""
 
-            self.generate_data_model_tests_incremental(
+            test_file_path = self.generate_data_model_tests_incremental(
                 context, old_models, new_models, old_entities, new_entities, old_tests, project_path
             )
         else:
             models_content = read_models_file(project_path)
-            self.generate_data_model_tests(context, models_content, project_path)
+            test_file_path = self.generate_data_model_tests(context, models_content, project_path)
 
-        return {}
+        return {
+            "data_model_test_path": test_file_path
+        }
 
-    def generate_data_model_tests(self, context: Context, models_content: str, project_path: str):
+    def generate_data_model_tests(self, context: Context, models_content: str, project_path: str) -> str:
         """Use Claude to generate data model tests based on models.py"""
 
         user_prompt = load_prompt_template("generate_data_model_tests", models_content=models_content)
@@ -65,7 +67,7 @@ class GenerateDataModelTests(Phase):
         test_file_path = os.path.join(project_path, TEST_FILE_PATH)
 
         with with_step("Generating data model tests..."):
-            generator.generate_and_write(
+            return generator.generate_and_write(
                 context.anthropic_client,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
@@ -73,7 +75,7 @@ class GenerateDataModelTests(Phase):
                 output_file_path=test_file_path
             )
 
-    def generate_data_model_tests_incremental(self, context: Context, old_models: str, new_models: str, old_entities: list[dict], new_entities: list[dict], old_tests: str, project_path: str):
+    def generate_data_model_tests_incremental(self, context: Context, old_models: str, new_models: str, old_entities: list[dict], new_entities: list[dict], old_tests: str, project_path: str) -> str:
         """Use Claude to generate incremental data model tests based on changes"""
 
         user_prompt = load_prompt_template("generate_data_model_tests_incremental",
@@ -87,7 +89,7 @@ class GenerateDataModelTests(Phase):
         test_file_path = os.path.join(project_path, TEST_FILE_PATH)
 
         with with_step("Generating incremental data model tests..."):
-            generator.generate_and_write(
+            return generator.generate_and_write(
                 context.anthropic_client,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_prompt}],
