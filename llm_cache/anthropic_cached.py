@@ -59,7 +59,7 @@ class CachedAnthropic:
                     yield text
             yield cached_iterator()
         else:        
-            report_cache_miss(cache_key, f"stream {kwargs.get('system', '<no system prompt>')[:100]}")
+            self.report_cache_miss(cache_key, f"stream {kwargs.get('system', '<no system prompt>')[:100]}")
             def stream_iterator():
                 with self.client.messages.stream(**kwargs) as stream:
                     response_chunks = []
