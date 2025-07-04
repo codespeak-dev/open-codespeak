@@ -1,26 +1,32 @@
 import logging
+from typing import Optional
 from colors import Colors
 from data_serializer import text_file
 from phase_manager import State, Phase, Context
 from with_step import with_streaming_step
+from fileutils import load_prompt_template, format_file_content
 
-SYSTEM_PROMPT = """Given a spec and a list of user stories, extract the general facts about the project.
-Include things like project name and conventions.
-We are only looking for facts that are common across all the user stories and relevant to all of the project, not specific to any one story or a feature.
-Return a list of facts in the following format:
-- ...
-- ...
-- ...
-"""
+SYSTEM_PROMPT = "You are an expert at analyzing project specifications and extracting key facts."
 
-def extract_facts(stories: str, spec: str, context: Context) -> str:
+def extract_facts(context: Context, spec: str, stories: Optional[str] = None,
+                 spec_diff: Optional[str] = None, old_stories: Optional[str] = None,
+                 new_stories: Optional[str] = None, old_facts: Optional[str] = None) -> str:
+
+    is_incremental = spec_diff is not None
 
     with with_streaming_step("Extracting general facts...") as (input_tokens, output_tokens):
-        content = f"<spec>\n{spec}\n</spec>\n<stories>\n{stories}\n</stories>"
+        if is_incremental:
+            user_prompt = load_prompt_template("extract_facts", incremental=True,
+                                             spec=spec, spec_diff=spec_diff,
+                                             old_stories=old_stories, new_stories=new_stories,
+                                             old_facts=old_facts)
+        else:
+            user_prompt = load_prompt_template("extract_facts", incremental=False,
+                                             spec=spec, stories=stories)
 
-        input_tokens[0] = len(content.split()) + len(SYSTEM_PROMPT.split())
+        input_tokens[0] = len(user_prompt.split()) + len(SYSTEM_PROMPT.split())
 
-        logging.getLogger(ExtractFacts.__class__.__qualname__).info(content)
+        logging.getLogger(ExtractFacts.__class__.__qualname__).info(user_prompt)
 
         response_text = ""
         with context.anthropic_client.stream(
@@ -31,7 +37,7 @@ def extract_facts(stories: str, spec: str, context: Context) -> str:
             messages=[
                 {
                     "role": "user",
-                    "content": content
+                    "content": user_prompt
                 }
             ]
         ) as stream:
@@ -47,14 +53,28 @@ class ExtractFacts(Phase):
         self.logger = logging.getLogger(__class__.__qualname__)
 
     def run(self, state: State, context: Context) -> dict:
-        stories = state.get("stories", "")
+        spec_diff = state.get("spec_diff")
         spec = state["spec"]
 
-        verbose = context.verbose if context else False
+        if spec_diff:
+            stories: str = state.get("stories")
+            if not stories:
+                raise ValueError("No stories found")
+            old_facts: str = state.get("facts")
 
-        facts = extract_facts(stories, spec, context)
+            spec, _ = format_file_content(spec, offset=None, limit=None, truncate_line=None)
 
-        if verbose:
+            facts = extract_facts(context, spec=spec, spec_diff=spec_diff,
+                                stories=stories,
+                                old_facts=old_facts)
+        else:
+            stories = state.get("stories")
+            if not stories:
+                raise ValueError("No stories found")
+
+            facts = extract_facts(context, spec=spec, stories=stories)
+
+        if context.verbose:
             self.logger.info(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}Extracted Facts:{Colors.END}")
             self.logger.info(facts)
 

@@ -1,0 +1,33 @@
+{% if incremental %}
+You need to extract updated general facts about the project based on changes in the spec and stories.
+
+<spec>
+{{ spec }}
+</spec>
+<spec_diff>
+{{ spec_diff }}
+</spec_diff>
+<stories>
+{{ stories }}
+</stories>
+<old_facts>
+{{ old_facts }}
+</old_facts>
+{% else %}
+You need to extract general facts about the project based on the provided spec and stories.
+
+<spec>
+{{ spec }}
+</spec>
+<stories>
+{{ stories }}
+</stories>
+{% endif %}
+
+Extract the general facts about the project. Include things like project name and conventions.
+We are only looking for facts that are common across all the user stories and relevant to all of the project, not specific to any one story or a feature.
+
+Return a list of facts in the following format:
+- ...
+- ...
+- ... 
