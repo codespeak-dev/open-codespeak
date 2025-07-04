@@ -4,7 +4,7 @@ from data_serializer import json_file
 from phase_manager import State, Phase, Context
 from with_step import with_step
 from fileutils import format_file_content, load_prompt_template
-from entity_extractor import (Entity, to_entities, ENTITY_TOOLS_SCHEMA, EntityExtractor)
+from entity_extractor import (Entity, to_entities, EntityExtractor)
 
 
 def extract_entities(context: Context, spec: str, existing_entities=None, spec_diff=None) -> list[dict]:
@@ -20,9 +20,6 @@ def extract_entities(context: Context, spec: str, existing_entities=None, spec_d
 
         extractor = EntityExtractor(context.anthropic_client, model="claude-3-7-sonnet-latest")
         entities_data = extractor.extract_entities(
-            spec=spec,
-            existing_entities=existing_entities,
-            spec_diff=spec_diff,
             user_prompt=user_prompt
         )
 
