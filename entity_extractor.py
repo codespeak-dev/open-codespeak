@@ -102,13 +102,7 @@ class EntityExtractor:
         self.client = client
         self.model = model
     
-    def extract_entities(
-        self,
-        spec: str,
-        user_prompt: str,
-        existing_entities: Optional[List[Dict]] = None,
-        spec_diff: Optional[str] = None,
-    ) -> List[Dict]:
+    def extract_entities(self, user_prompt: str,) -> list[dict]:
         system_prompt = "You are an expert Django developer and an excellent data modeler."
 
         message = self.client.create(
