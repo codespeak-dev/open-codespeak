@@ -120,7 +120,7 @@ class LLMFileGenerator:
     
     async def generate_and_write_async(self, anthropic_client, *, system: str, messages: list, 
                                      expected_file_path: str, output_file_path: str, 
-                                     max_tokens: int = None, temperature: float = None) -> str:
+                                     max_tokens: int | None = None, temperature: float | None = None) -> str:
         """
         Async version of generate_and_write for use with AsyncAnthropic clients.
         """
@@ -158,7 +158,7 @@ class LLMFileGenerator:
 
     def generate_and_write(self, anthropic_client, *, system: str, messages: list, 
                           expected_file_path: str, output_file_path: str, 
-                          max_tokens: int = None, temperature: float = None) -> str:
+                          max_tokens: int | None = None, temperature: float | None = None) -> str:
         """
         Generate content using LLM and write to a single file.
         
