@@ -1,0 +1,12 @@
+The test should:
+1. Import from django.test import TestCase
+2. Import the models from web.models
+3. Import any other necessary Django modules (like datetime, uuid, etc.)
+4. Inherit from django.test.TestCase (NOT unittest.TestCase)
+5. Test model creation, relationships, and database integrity
+6. Use self.assert* methods (like self.assertEqual, self.assertTrue, etc.)
+7. Include proper test method names starting with 'test_'
+8. Test foreign key relationships, cascade deletions, and unique constraints
+9. Focus on testing the Django ORM and model layer, not API endpoints
+10. Include a setUp method to create test data
+11. Use from django.utils import timezone and timezone.now() instead of datetime.now() for datetime fields

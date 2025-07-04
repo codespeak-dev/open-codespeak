@@ -1,0 +1,40 @@
+Old web/models.py:
+
+```python
+# web/models.py
+{{ old_models }}
+```
+
+New web/models.py:
+
+```python
+# web/models.py
+{{ new_models }}
+```
+
+
+Old entities definition:
+
+```json
+{{ old_entities }}
+```
+
+New entities definition:
+
+```json
+{{ new_entities }}
+```
+
+Old web/test_data_model.py:
+
+```python
+# web/test_data_model.py
+{{ old_tests }}
+```
+
+Your job is to generate an updated Django TestCase class that tests the Django models and their relationships based on the changes from old to new entities. {% include '_shared_test_requirements.j2' %}
+12. Update existing tests to reflect model changes and add new tests for new models/fields
+13. Remove tests for models/fields that no longer exist
+
+Generate comprehensive tests that verify the updated models work correctly with the Django ORM.
+Use the write_file tool to write the complete updated Django TestCase class to web/test_data_model.py.

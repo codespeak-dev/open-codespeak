@@ -1,7 +1,7 @@
 import os
 import re
 import json
-import llm_cache
+from llm_cache.anthropic_cached import CachedAnthropic
 import logging
 from jinja2 import Environment, FileSystemLoader
 from fileutils import load_template as load_template_jinja, LLMFileGenerator
@@ -35,9 +35,7 @@ def generate_models_from_template(project_path: str, project_name: str, entities
         render_and_write(template_path, output_path)
 
 
-def generate_models_with_llm(project_path: str, old_models: str, old_entities: list[dict], new_entities: list[dict]):
-    client = llm_cache.Anthropic()
-
+def generate_models_with_llm(client: CachedAnthropic, project_path: str, old_models: str, old_entities: list[dict], new_entities: list[dict]):
     system_prompt = """
     You are an expert Django developer.
     """
@@ -65,20 +63,25 @@ class GenerateModels(Phase):
         project_path = state["project_path"]
         spec_diff = state.get("spec_diff")
 
-        # def get_old_revision_blob(file_path: str):
-        #     return context.git_helper.git_file_content_for_revision(
-        #         file_path=file_path,
-        #         revision_sha="0660516b7b1955e10a3e9e05bfc3da36c2988e9d"
-        #     )
+        def get_old_revision_blob(file_path: str):
+            raise Exception("Incrementally generating models is not supported yet")
 
-        # if spec_diff:
-        #     old_models: str = get_old_revision_blob("web/models.py")
-        #     old_entities_blob: str = get_old_revision_blob("entities.json")
-        #     old_entities = json.loads(old_entities_blob)
-        #     new_entities = state["entities"]
+            return context.git_helper.git_file_content_for_revision(
+                file_path=file_path,
+                revision_sha="948073984371d9f2a48c26c792da88fdecb0b50d"
+            )
 
-        #     generate_models_with_llm(project_path, old_models, old_entities, new_entities)
-        #     return {}
+        if spec_diff:
+            old_models_path: str = os.path.join(project_path, "web/models.py")
+            with open(old_models_path, "r") as f:
+                old_models = f.read()
+
+            old_entities_blob: str = get_old_revision_blob("entities.json")
+            old_entities = json.loads(old_entities_blob)
+            new_entities = state["entities"]
+
+            generate_models_with_llm(context.anthropic_client, project_path, old_models, old_entities, new_entities)
+            return {}
 
         # else:
         project_name = state["project_name"]

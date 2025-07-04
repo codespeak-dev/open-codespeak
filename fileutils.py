@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 from typing import cast
-from jinja2 import Template
+from jinja2 import Template, Environment, FileSystemLoader
 from anthropic.types import ToolParam
 
 @dataclass
@@ -82,9 +82,15 @@ def load_template(template_path: str, **kwargs) -> str:
     Returns:
         Rendered template content as string
     """
-    with open(template_path, "r") as f:
-        template = Template(f.read())
-        return template.render(**kwargs)
+    # Get the directory and filename for the template
+    template_dir = os.path.dirname(template_path)
+    template_name = os.path.basename(template_path)
+
+    # Create a Jinja2 environment with FileSystemLoader
+    env = Environment(loader=FileSystemLoader(template_dir))
+    template = env.get_template(template_name)
+
+    return template.render(**kwargs)
 
 
 class LLMFileGenerator:
