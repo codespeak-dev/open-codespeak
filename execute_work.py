@@ -86,7 +86,4 @@ class ExecuteWork(Phase):
         self.logger.info(f"  Steps processed: {len(steps)}")
         self.logger.info(f"  Total duration ({provider}, API): {minutes}m {seconds}s")
 
-        return {
-            "provider": provider,
-            "total_api_duration": total_api_duration
-        }
+        return {}
