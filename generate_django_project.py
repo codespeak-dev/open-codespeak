@@ -47,6 +47,7 @@ def generate_django_project_from_template(project_path: str, project_name: str, 
         (f'{project_name}/asgi.py', os.path.join(project_settings_root, 'asgi.py')),
         (f'{project_name}/wsgi.py', os.path.join(project_settings_root, 'wsgi.py')),
         ('manage.py', os.path.join(project_path, 'manage.py')),
+        ('.env', os.path.join(project_path, '.env')),
     ]
 
     for template_path, output_path in files_to_template:
