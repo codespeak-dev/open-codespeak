@@ -81,58 +81,51 @@ class CachedAnthropic:
         
         self.logger = logging.getLogger(CachedAnthropic.__class__.__qualname__)
         
+    def report_cache_miss(self, key: CacheKey, info: str):
+        if REPORT_CACHE_MISSES:
+            info_formatted = info.replace('\n', ' ').strip()
+            self.logger.info(f"{Colors.BRIGHT_RED}Cache miss [{key.hash[:8]}]: {info_formatted}{Colors.END}")
+
+    def report_cache_hit(self, key: CacheKey, info: str):
+        if REPORT_CACHE_MISSES:
+            info_formatted = info.replace('\n', ' ').strip()
+            self.logger.info(f"{Colors.BRIGHT_GREEN}Cache hit [{key.hash[:8]}]: {info_formatted}{Colors.END}")
+
     def create(self, **kwargs) -> Message:
+        info = f"create {kwargs.get('system', '<no system prompt>')[:100]}"
         cache_key = self.cache.key_for_callable(self.client.messages.create, **kwargs)
         cached_response = self.cache.get(cache_key)
         if cached_response is not None:
+            self.report_cache_hit(cache_key, info)
             return cached_response
         else:
-            self.report_cache_miss(cache_key, f"create {kwargs.get('system', '<no system prompt>')[:100]}")
+            self.report_cache_miss(cache_key, info)
             result = self.client.messages.create(**kwargs)
             self.cache.set(cache_key, result)
             return result
 
-    def report_cache_miss(self, key: CacheKey, info: str):
-        if REPORT_CACHE_MISSES:
-            self.logger.info(f"{Colors.BRIGHT_RED}Cache miss [{key.hash[:8]}]: {info}{Colors.END}")
-
     async def async_create(self, **kwargs) -> Message:
+        info = f"async_create {kwargs.get('system', '<no system prompt>')[:100]}"
         cache_key = self.cache.key_for_callable(self.async_client.messages.create, **kwargs)
         cached_response = self.cache.get(cache_key)
         if cached_response is not None:
+            self.report_cache_hit(cache_key, info)
             return cached_response
         else:
-            self.report_cache_miss(cache_key, f"async_create {kwargs.get('system', '<no system prompt>')[:100]}")
+            self.report_cache_miss(cache_key, info)
             result = await self.async_client.messages.create(**kwargs)
             self.cache.set(cache_key, result)
             return result
             
-    @contextmanager
-    def text_stream(self, **kwargs) -> Iterator[str]:
-        cache_key = self.cache.key_for_callable(self.client.messages.stream, **kwargs)
-        cached_response = self.cache.get(cache_key)
-        if cached_response is not None:
-            def cached_iterator():
-                for text in cached_response:
-                    yield text
-            yield cached_iterator()
-        else:        
-            self.report_cache_miss(cache_key, f"stream {kwargs.get('system', '<no system prompt>')[:100]}")
-            def stream_iterator():
-                with self.client.messages.stream(**kwargs) as stream:
-                    response_chunks = []
-                    for text in stream.text_stream:
-                        response_chunks.append(text)
-                        yield text
-                    self.cache.set(cache_key, response_chunks)
-            yield stream_iterator()
 
     @contextmanager
     def stream(self, **kwargs):
+        info = f"stream {kwargs.get('system', '<no system prompt>')[:100]}"
         cache_key = self.cache.key_for_callable(self.client.messages.stream, **kwargs)
         cached_response = self.cache.get(cache_key)
         
         if cached_response is not None:
+            self.report_cache_hit(cache_key, info)
             class CachedTextStream:
                 @property
                 def text_stream(self):
@@ -144,7 +137,7 @@ class CachedAnthropic:
 
             yield CachedTextStream()
         else:        
-            self.report_cache_miss(cache_key, f"stream {kwargs.get('system', '<no system prompt>')[:100]}")
+            self.report_cache_miss(cache_key, info)
 
             with self.client.messages.stream(**kwargs) as stream:
                 response_chunks = []

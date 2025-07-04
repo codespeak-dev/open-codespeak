@@ -112,6 +112,9 @@ class FileBasedCache:
     VERSION = (0, 0, 2)
     VERSION_STRING = ".".join(map(str, VERSION))
 
+    hit_count: int = 0
+    miss_count: int = 0
+
     def __init__(self, cache_dir: Path, sanitizer: Sanitizer = Sanitizer()):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -140,16 +143,24 @@ class FileBasedCache:
     def _get(self, key: CacheKey) -> Any:
         file_name = self._file_name(key, "json")
         if file_name.exists():
-            self.metadata.append("hits", key.hash)
+            self.handle_cache_hit(key)
             return self.value_serializer.deserialize_with_pydantic(json.loads(file_name.read_text()))
         
         file_name = self._file_name(key, "txt")
         if file_name.exists():
             return file_name.read_text()
         
-        self.metadata.append("misses", key.hash)
+        self.handle_cache_miss(key)
         return None
+
+    def handle_cache_hit(self, key):
+        self.hit_count += 1
+        self.metadata.append("hits", key.hash)
     
+    def handle_cache_miss(self, key):
+        self.miss_count += 1
+        self.metadata.append("misses", key.hash)
+
     def _set(self, key: CacheKey, value: Any):
         if isinstance(value, str):
             self._file_name(key.hash, "txt").write_text(value)

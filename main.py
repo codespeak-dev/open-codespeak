@@ -167,6 +167,9 @@ def main():
     logger.info(f"\nProject '{Colors.BOLD}{Colors.BRIGHT_CYAN}{project_name}{Colors.END}' generated in '{project_path}'.")
     logger.info(f"Start Django server via: python {project_path}/manage.py runserver")
 
+    logger.info(f"Cache hits: {Colors.BRIGHT_GREEN}{context.anthropic_client.cache.hit_count}{Colors.END}")
+    logger.info(f"Cache misses: {Colors.BRIGHT_RED}{context.anthropic_client.cache.miss_count}{Colors.END}")
+
 if __name__ == "__main__":
     try:
         main()
